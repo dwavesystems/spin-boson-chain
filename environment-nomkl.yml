@@ -1,0 +1,13 @@
+name: sbc
+channels:
+  - default
+dependencies:
+  - python>=3.5
+  - nomkl
+  - numpy
+  - scipy
+  - pip
+  - setuptools>=30.3.0
+  - pytest
+  - pip:
+    - tensornetwork==0.4.0

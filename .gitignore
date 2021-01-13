@@ -1,0 +1,23 @@
+# Ignore backups
+*~
+
+# Ignore select directories
+__pycache__/
+.ipynb_checkpoints/
+docs/_build/
+docs/reference/
+examples/output*/
+
+# Ignore select files
+ostfic/_version.py
+
+# Ignore .pyc files
+*.pyc
+
+# Ignore #*# files
+\#*#
+
+# Ignore pip install build files
+build/
+*.egg-info/
+*/_version.py

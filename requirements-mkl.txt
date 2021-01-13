@@ -1,0 +1,4 @@
+intel-numpy
+intel-scipy
+pytest
+tensornetwork==0.4.0
