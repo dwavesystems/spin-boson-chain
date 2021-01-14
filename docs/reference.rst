@@ -13,4 +13,5 @@ sbc reference guide
 .. autosummary::
     :toctree: reference
 
+    system
     tn

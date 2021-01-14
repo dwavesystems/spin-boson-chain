@@ -41,11 +41,13 @@ __all__ = ["TruncParams"]
 class TruncParams():
     r"""Parameters specifying how to truncate Schmidt spectrum in a SVD.
 
-    ``sbc`` represents the system state and the local path influence functionals
-    (see documentation for the module :mod:`sbc.state` for further discussion of
-    the local path influence functionals) by set of matrix product states 
-    (MPS's). As time evolves, the bond dimensions of the MPS's representing the 
-    aforementioned objects will generally increase, thus increasing memory 
+    ``sbc`` represents the local path influence functionals --- which are the
+    objects in the QUAPI formalism that encode all the information regarding
+    the non-Markovian dynamics of the system --- by a set of matrix product
+    states (MPS's). Similarly, the system's state --- which is calculated using
+    the local path influence functionals --- ultimately is represented by a
+    MPS. With each time step, the bond dimensions of these MPS's representing
+    the aforementioned objects generally increase, thus increasing memory
     requirements and the simulation runtime. To counter this, one can perform 
     singular value decomposition (SVD) truncations to compress efficiently the 
     MPS's. In short, increasing and decreasing the parameters 
@@ -64,6 +66,11 @@ class TruncParams():
     singular values smaller than ``rel_tol * s_max``, where ``s_max`` is the
     largest singular value after the initial truncation procedure has been
     performed.
+
+    For more information on local path influence functionals, and the tensor
+    network (TN) algorithm used to calculate the system's state, see our 
+    detailed exposition on our QUAPI+TN approach found 
+    `here <https://confluence.dwavesys.com/display/~mfitzpatrick/Simulating+dynamics+of+flux+qubit+chains+with+charge+and+hybrid+flux+noise+using+tensor+networks>`_.
 
     Parameters
     ----------
