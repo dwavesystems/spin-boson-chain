@@ -26,6 +26,7 @@ operations.
 
 # Load modules.
 from . import system
+from . import bath
 from . import tn
 from . import version
 

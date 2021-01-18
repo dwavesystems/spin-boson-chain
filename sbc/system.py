@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-r"""Contains class definitions for the system's model components/parameters.
+r"""Contains class definitions for the model parameters of the system.
 
 ``sbc`` is a library for simulating the dynamics of a generalized
 one-dimensional spin-boson model, where both the :math:`z`- and 
@@ -36,9 +36,9 @@ transverse field energy scale for site :math:`r` at time :math:`t`,
 between sites :math:`r` and :math:`r+1` at time :math:`t`, and :math:`L` being
 the number of sites.
 
-This module contains all the classes required to specify all the system model 
-parameters, :math:`h_{z; r}(t)`, :math:`h_{x; r}(t)`, and 
-:math:`J_{z, z; r, r+1}(t)`, for a given problem of interest.
+This module contains classes to specify all the model parameters of the system, 
+namely the :math:`h_{z; r}(t)`, :math:`h_{x; r}(t)`, and 
+:math:`J_{z, z; r, r+1}(t)`.
 """
 
 

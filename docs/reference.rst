@@ -14,4 +14,5 @@ sbc reference guide
     :toctree: reference
 
     system
+    bath
     tn

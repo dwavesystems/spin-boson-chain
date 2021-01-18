@@ -69,8 +69,7 @@ class TruncParams():
 
     For more information on local path influence functionals, and the tensor
     network (TN) algorithm used to calculate the system's state, see our 
-    detailed exposition on our QUAPI+TN approach found 
-    `here <https://confluence.dwavesys.com/display/~mfitzpatrick/Simulating+dynamics+of+flux+qubit+chains+with+charge+and+hybrid+flux+noise+using+tensor+networks>`_.
+    detailed exposition on our QUAPI+TN approach found :manual:`here <>`.
 
     Parameters
     ----------
