@@ -78,7 +78,7 @@ where :math:`C_{\nu;T}(t)` is the :math:`\nu^{\mathrm{th}}`-component of the
 bath correlation function at temperature :math:`T`:
 
 .. math ::
-    C_{\nu;r;T}(t)=\text{Tr}^{(B)}\left\{ \hat{\rho}^{(i,B)}
+    C_{\nu;T}(t)=\text{Tr}^{(B)}\left\{ \hat{\rho}^{(i,B)}
     \hat{\mathcal{Q}}_{\nu;r=1}^{(B)}(t)
     \hat{\mathcal{Q}}_{\nu;r=1}^{(B)}(0)\right\},
     :label: bath_bath_correlation_function
@@ -99,8 +99,23 @@ bath's reduced state operator at :math:`t=0`:
 
 with :math:`\beta=1/(k_B T)`, and :math:`k_B` being the Boltzmann constant. 
 
+Because the system is coupled to its environment, the dynamics of the system not
+only depend on its current state, but also its history. The degree to which the
+dynamics depend on the history of the system can be characterized by a quantity
+known as the bath correlation time, or “memory”. Informally, one may define the 
+system's memory :math:`\tau` as the time beyond which both the :math:`y`- and 
+the :math:`z`-components of the bath correlation function 
+[Eq. :eq:`bath_bath_correlation_function`] are negligibly small:
+
+.. math ::
+    \left|C_{\nu; T}\right| \ll 1.
+    :label: bath_defining_memory
+
+In ``sbc``, the user specifies the system's memory: if chosen too small, the
+simulation will not be accurate.
+
 This module contains classes to specify all the necessary model components of 
-the bath, namely the :math:`A_{\nu;T}(\omega)`.
+the bath, namely the :math:`A_{\nu;T}(\omega)` and the memory :math:`\tau`.
 """
 
 
@@ -111,6 +126,9 @@ the bath, namely the :math:`A_{\nu;T}(\omega)`.
 
 # For deep copies of objects.
 import copy
+
+# Import ceiling function.
+from math import ceil
 
 
 
@@ -600,8 +618,8 @@ class SpectralDensitySubcmpnt0T():
 class Model():
     r"""The bath's model components.
 
-    For background information on spectral densities, see the documentation for
-    the module :mod:`sbc.bath`. and the class 
+    For background information on spectral densities and system memory, see the 
+    documentation for the module :mod:`sbc.bath`, and the class 
     :class:`sbc.bath.SpectralDensityCmpnt`. 
 
     Parameters
@@ -617,6 +635,9 @@ class Model():
     beta : `float`
         The inverse temperature, :math:`\beta=1/(k_B T)`, with :math:`k_B` 
         being the Boltzmann constant and :math:`T` being the temperature.
+    tau : `float`
+        The bath correlation time, also known as the system's memory 
+        :math:`\tau`. ``tau`` is expected to be non-negative.
 
     Attributes
     ----------
@@ -626,14 +647,29 @@ class Model():
     spectral_density_z_cmpnt : :class:`sbc.bath.SpectralDensityCmpnt`, read-only
         The finite-temperature spectral density of the :math:`z^{\mathrm{th}}` 
         component of the noise, :math:`A_{z;T}(\omega)`.
+    tau : `float`, read-only
+        The bath correlation time, also known as the system's memory 
+        :math:`\tau`.
     """
     def __init__(self,
                  spectral_density_y_cmpnt_0T,
                  spectral_density_z_cmpnt_0T,
-                 beta):
+                 beta,
+                 tau):
         self.spectral_density_y_cmpnt = \
             SpectralDensityCmpnt(spectral_density_y_cmpnt_0T, beta)
         self.spectral_density_z_cmpnt = \
             SpectralDensityCmpnt(spectral_density_z_cmpnt_0T, beta)
+        self.tau = tau
 
         return None
+
+
+
+def _calc_K_tau(tau, dt):
+    r"""This function implements Eq. (67) of the detailed manuscript (DM) on our
+    QUAPI-TN approach. See Sec. 2.5 of DM for further context.
+    """
+    K_tau = max(0, ceil((tau - 7.0*dt/4.0) / dt)) + 3
+
+    return K_tau

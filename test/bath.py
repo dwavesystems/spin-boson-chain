@@ -238,7 +238,8 @@ print("Constructing an instance of bath.Model.\n")
 
 bath_model = bath.Model(spectral_density_y_cmpnt_0T=A_y_0T,
                         spectral_density_z_cmpnt_0T=A_z_0T,
-                        beta=beta)
+                        beta=beta,
+                        tau=0.5)
 
 print("Evaluating finite-temperature spectral density of the yth component of "
       "noise at various frequencies:")
@@ -264,3 +265,19 @@ print(unformatted_msg.format(0.5, A_z.eval(0.5)))
 print(unformatted_msg.format(-0.5, A_z.eval(-0.5)))
 print(unformatted_msg.format(5.0, A_z.eval(5.0)))
 print(unformatted_msg.format(-5.0, A_z.eval(-5.0)))
+print("\n\n")
+
+
+
+# bath._calc_K_tau test #1.
+print("bath._calc_K_tau test #1")
+print("========================")
+
+print("Evaluating 'bath._calc_K_tau' for several values of the system's memory "
+      "'tau' at fixed time step 'dt':")
+unformatted_msg = "    Evaluating for (tau, dt)=({}, {}): Result={}"
+print(unformatted_msg.format(0.0, 0.1, bath._calc_K_tau(0.0, 0.1)))
+print(unformatted_msg.format(0.1, 0.1, bath._calc_K_tau(0.1, 0.1)))
+print(unformatted_msg.format(0.175, 0.1, bath._calc_K_tau(0.175, 0.1)))
+print(unformatted_msg.format(0.180, 0.1, bath._calc_K_tau(0.180, 0.1)))
+print(unformatted_msg.format(3.0, 0.1, bath._calc_K_tau(3.0, 0.1)))
