@@ -25,6 +25,11 @@ from scipy.integrate import quad
 
 
 
+# For converting base-4 variables to Ising spin pairs.
+from sbc._base4 import base_4_to_ising_pair
+
+
+
 ############################
 ## Authorship information ##
 ############################
@@ -51,25 +56,29 @@ class Eta():
     Parameters
     ----------
     A_v_T : :class:`sbc.bath.SpectralDensityCmpnt`
-        This is the quantity :math:`A_{\nu;T}(\omega)`.
+        The finite-temperature spectral density of some component of noise of
+        interest. The quantity is denoted by :math:`A_{\nu;T}(\omega)` in the
+        DM, where :math:`\nu\in\{y,z\}` indicates the component of noise of
+        interest.
     dt : `float`
         The time step size.
     tilde_w_set : `array_like` (`float`, shape=(4,))
         This is the array :math:`\left(\tilde{w}_{\nu}, \tilde{w}_{\nu; 0},
         \tilde{w}_{\nu; 1}, \tilde{w}_{\nu; 2}\right)`, which is introduced in
         Eqs. (548)-(554) of the DM.
-    func_form_of_k_v_n : `func` (`int`)
+    eval_k_v_n : `func` (`int`)
         The functional form of :math:`k_{\nu; n}`, which appears in Eq. (549)
-        of the DM.
+        of the DM. The function's argument is :math:`n`, i.e. :math:`\nu` is
+        treated as fixed.
     """
-    def __init__(self, A_v_T, dt, tilde_w_set, func_form_of_k_v_n):
+    def __init__(self, A_v_T, dt, tilde_w_set, eval_k_v_n):
         self.A_v_T = A_v_T
         self.dt = dt
         self.tilde_w_v = tilde_w_set[0]
         self.tilde_w_v_0 = tilde_w_set[1]
         self.tilde_w_v_1 = tilde_w_set[2]
         self.tilde_w_v_2 = tilde_w_set[3]
-        self.func_form_of_k_v_n = func_form_of_k_v_n
+        self.eval_k_v_n = eval_k_v_n
 
         return None
 
@@ -116,7 +125,7 @@ class Eta():
         introduced in Eqs. (548) of the detailed manuscript (DM) on our 
         QUAPI-TN approach.
         """
-        k_v_n = self.func_form_of_k_v_n(n)
+        k_v_n = self.eval_k_v_n(n)
 
         # Eq. (548) of DM.
         self.ST_weights = [0.0]*(k_v_n+1)
@@ -141,10 +150,11 @@ class Eta():
         
         self.integration_pts = [0.0]*5
         self.integration_pts[0] = -A_v_T_subcmpnt.limit_0T.hard_cutoff_freq
-        self.integration_pts[1] = -np.pi / W_var_max
+        self.integration_pts[1] = \
+            -np.pi / W_var_max if W_var_max != 0 else self.integration_pts[0]
         self.integration_pts[2] = 0.0
-        self.integration_pts[3] = np.pi / W_var_max
-        self.integration_pts[4] = A_v_T_subcmpnt.limit_0T.hard_cutoff_freq
+        self.integration_pts[3] = -self.integration_pts[1]
+        self.integration_pts[4] = -self.integration_pts[0]
 
         return None
 
@@ -308,3 +318,273 @@ class Eta():
                       limit=2000*int(abs((pt2-pt1)/pt1)+1))[0]
 
         return result
+
+
+
+class BathInfluence():
+    r"""A class representing the bath influence function,
+    :math:`\mathring{I}_{\nu; n; m_1; m_2}^{(\mathrm{bath})}
+    \left(j_{r; m_1}, j_{r; m_2}\right)`, which is introduced in Eq. (89) of the
+    detailed manuscript (DM) on our QUAPI-TN approach. 
+    
+    Parameters
+    ----------
+    eta : :class:`sbc._twopt.common.Eta`
+        The eta-function, :math:`\eta_{\nu; n; k_1; k_2}`, which is introduced 
+        in Eqs. (49)-(59) of the DM. See Appendix D for details on how we 
+        evaluate the eta-function numerically.
+    K_tau : `int`
+        This is the quantity :math:`K_{\tau}` that appears throughtout the DM,
+        where :math:`\tau` indicates the bath correlation time, or the system's 
+        "memory". :math:`K_{\tau}` is given by Eq. (67).
+    K_v_tau : `int`
+        This is the quantity :math:`K_{\nu; \tau}` that appears throughtout the
+        DM, where :math:`\nu` indicates the component of noise of interest, and 
+        :math:`\tau` indicates the bath correlation time, or the system's 
+        "memory". The :math:`K_{\nu; \tau}` are given by Eqs. (65) and (66).
+    """
+    def __init__(self, eta, K_tau, K_v_tau):
+        self.K_tau = K_tau
+        self.K_v_tau = K_v_tau
+        self.eval_k_v_n = eta.eval_k_v_n
+
+        self.calc_eta_caches(eta)
+
+        self.set_m1_m2_n(0, 0, 1)
+
+        return None
+
+
+
+    def calc_eta_caches(self, eta):
+        r"""In Sec. D.1 of the detailed manuscript (DM) of our QUAPI-TN
+        approach, we discuss why is it computationally beneficial to calculate
+        only the :math:`\eta_{\nu; n; k_1; k_2}` that are required for a full
+        simulation, cache them, and then reuse the results wherever possible.
+        This method calculates the :math:`\eta_{\nu; n; k_1; k_2}` that are
+        required and caches them.
+        """
+        K_tau = self.K_tau
+        K_v_tau = self.K_v_tau
+        eval_k_v_n = self.eval_k_v_n
+
+        # Implementing Eq. (588) of the DM.
+        lf = K_tau - 2
+        self.eta_cache_1 = [0.0j]*(lf+1)
+        for l in range(0, lf+1):
+            k = eval_k_v_n(n=l+1)
+            k1 = k - 1
+            k2 = 0
+            n = l+1
+            self.eta_cache_1[l] = eta.eval(k1, k2, n)
+
+        # Implementing Eq. (589) of the DM.
+        lf = K_tau - 3 + K_v_tau // (2*K_tau)
+        self.eta_cache_2 = [0.0j]*(lf+1)
+        for l in range(0, lf+1):
+            k = eval_k_v_n(n=l+1)
+            k1 = k
+            k2 = 0
+            n = l+1
+            self.eta_cache_2[l] = eta.eval(k1, k2, n)
+
+        # Implementing Eq. (590) of the DM.
+        lf = K_tau - 1
+        self.eta_cache_3 = [0.0j]*(lf+1)
+        for l in range(0, lf+1):
+            k = eval_k_v_n(n=l+1)
+            k1 = k - 1
+            k2 = 1
+            n = l+1
+            self.eta_cache_3[l] = eta.eval(k1, k2, n)
+
+        # Implementing Eq. (591) of the DM.
+        lf = K_v_tau - 1
+        self.eta_cache_4 = [0.0j]*(lf+1)
+        for l in range(0, lf+1):
+            k = eval_k_v_n(n=K_tau+2)
+            k1 = k - 2
+            k2 = k - K_v_tau - 1 + l
+            n = K_tau + 2
+            self.eta_cache_4[l] = eta.eval(k1, k2, n)
+
+        # Implementing Eq. (592) of the DM.
+        lf = K_v_tau - 1
+        self.eta_cache_5 = [0.0j]*(lf+1)
+        for l in range(0, lf+1):
+            k = eval_k_v_n(n=K_tau+1)
+            k1 = k - 1
+            k2 = k - K_v_tau + l
+            n = K_tau + 1
+            self.eta_cache_5[l] = eta.eval(k1, k2, n)
+
+        # Implementing Eq. (593) of the DM.
+        lf = K_v_tau - 1
+        self.eta_cache_6 = [0.0j]*(lf+1)
+        for l in range(0, lf+1):
+            k = eval_k_v_n(n=K_tau)
+            k1 = k
+            k2 = k - K_v_tau + 1 + l
+            n = K_tau
+            self.eta_cache_6[l] = eta.eval(k1, k2, n)
+
+        return None
+
+
+
+    def eval(self, j_r_m1, j_r_m2):
+        r"""Evaluate the bath influence function
+        :math:`\mathring{I}_{\nu; n; m_1; m_2}^{(\mathrm{bath})}
+        \left(j_{r; m_1}, j_{r; m_2}\right)`, which is introduced in Eq. (89)
+        of the detailed manuscript (DM) on our QUAPI-TN approach.
+
+        Parameters
+        ----------
+        j_r_m1 : ``0`` | ``1`` | ``2`` | ``3``
+            The base-4 variable :math:`j_{r; m_1}`.
+        j_r_m2 : ``0`` | ``1`` | ``2`` | ``3``
+            The base-4 variable :math:`j_{r; m_2}`.
+        """
+        # The "eta cache" is selected in the call to the method
+        # :meth:`sbc._twopt.common.BathInfluence.set_m1_m2_n`, which first
+        # sets :math:`m_1`, :math:`m_2`, and :math:`n`.
+        eta_real_part = self.selected_eta_cache_real_part
+        eta_imag_part = self.selected_eta_cache_imag_part
+        
+        # Convert base-4 variables to Ising spin pairs. See Sec. 3.2 of DM for
+        # a discussion on such conversions.
+        sigma_r_pos1_m1, sigma_r_neg1_m1 = base_4_to_ising_pair(j_r_m1)
+        sigma_r_pos1_m2, sigma_r_neg1_m2 = base_4_to_ising_pair(j_r_m2)
+
+        # Implement Eq. (48) of DM.
+        gamma = ((sigma_r_pos1_m2-sigma_r_neg1_m2)
+                 * ((sigma_r_pos1_m1-sigma_r_neg1_m1) * eta_real_part
+                    + 1.0j * (sigma_r_pos1_m1+sigma_r_neg1_m1) * eta_imag_part))
+
+        # Implement Eq. (47) of DM.
+        result = np.exp(-gamma)
+
+        return result
+
+
+
+    def set_m1_m2_n(self, m1, m2, n):
+        r"""Set the :math:`n`, :math:`m_1`, and :math:`m_2` in the bath
+        influence function 
+        :math:`\mathring{I}_{\nu; n; m_1; m_2}^{(\mathrm{bath})}
+        \left(j_{r; m_1}, j_{r; m_2}\right)`
+        which is introduced in Eq. (89) of the detailed manuscript (DM) on our 
+        QUAPI-TN approach. 
+        """
+        tilde_k_m1 = eval_tilde_k_m(m=m1)
+        tilde_k_m2 = eval_tilde_k_m(m=m2)
+        K_tau = self.K_tau
+        K_v_tau = self.K_v_tau
+        k_v_n = self.eval_k_v_n(n)
+
+        if n == 1:
+            if (tilde_k_m2 == 0) and (tilde_k_m1 == 0):
+                # Using Eq. (594) of DM.
+                selected_eta_cache = self.eta_cache_6[K_v_tau-1]
+            elif (tilde_k_m2 == 1) and (tilde_k_m1 == 0):
+                # Using Eq. (595) of DM.
+                if k_v_n == 2:
+                    selected_eta_cache = self.eta_cache_1[0]
+                else:
+                    selected_eta_cache = self.eta_cache_6[K_v_tau-2]
+            elif (tilde_k_m2 == 1) and (tilde_k_m1 == 1):
+                # Using Eq. (596) of DM.
+                if k_v_n == 2:
+                    selected_eta_cache = self.eta_cache_3[0]
+                else:
+                    selected_eta_cache = self.eta_cache_6[K_v_tau-1]
+            elif (tilde_k_m2 == 2) and (tilde_k_m1 == 0):
+                # Using Eq. (597) of DM.
+                if k_v_n == 2:
+                    selected_eta_cache = self.eta_cache_2[0]
+                else:
+                    selected_eta_cache = self.eta_cache_1[0]
+            elif (tilde_k_m2 == 2) and (tilde_k_m1 == 1):
+                # Using Eq. (598) of DM.
+                if k_v_n == 2:
+                    selected_eta_cache = self.eta_cache_1[0]
+                else:
+                    selected_eta_cache = self.eta_cache_6[K_v_tau-2]
+            elif (tilde_k_m2 == k_v_n-1) and (tilde_k_m1 == k_v_n-1):
+                # Using Eq. (599) of DM.
+                if k_v_n == 2:
+                    selected_eta_cache = self.eta_cache_3[0]
+                else:
+                    selected_eta_cache = self.eta_cache_6[K_v_tau-1]
+            elif (tilde_k_m2 == k_v_n) and (tilde_k_m1 == 0):
+                # Using Eq. (600) of DM.
+                selected_eta_cache = self.eta_cache_2[0]
+            elif (tilde_k_m2 == k_v_n) and (tilde_k_m1 == 1):
+                # Using Eq. (601) of DM.
+                selected_eta_cache = self.eta_cache_1[0]
+            elif (tilde_k_m2 == k_v_n) and (tilde_k_m1 == k_v_n-1):
+                # Using Eq. (602) of DM.
+                if k_v_n == 2:
+                    selected_eta_cache = self.eta_cache_1[0]
+                else:
+                    selected_eta_cache = self.eta_cache_6[K_v_tau-2]
+            elif (tilde_k_m2 == k_v_n) and (tilde_k_m1 == k_v_n):
+                # Using Eq. (603) of DM.
+                selected_eta_cache = self.eta_cache_6[K_v_tau-1]
+        elif ((2 <= n) and (0 <= tilde_k_m2 <= min(K_v_tau-1, k_v_n-2))
+              and (tilde_k_m1 == 0)):
+            # Using Eq. (604) of DM.
+            selected_eta_cache = self.eta_cache_6[K_v_tau-1-tilde_k_m2]
+        elif ((2 <= n <= K_tau-1)
+              and (tilde_k_m2 == k_v_n-1) and (tilde_k_m1 == 0)):
+            # Using Eq. (605) of DM.
+            selected_eta_cache = self.eta_cache_1[n-1]
+        elif ((2 <= n <= K_tau-2+(K_v_tau/(2*K_tau)))
+              and (tilde_k_m2 == k_v_n) and (tilde_k_m1 == 0)):
+            # Using Eq. (606) of DM.
+            selected_eta_cache = self.eta_cache_2[n-1]
+        elif ((2 <= n) and (1 <= tilde_k_m2 <= min(K_v_tau, k_v_n-2))
+              and (tilde_k_m1 == 1)):
+            # Using Eq. (607) of DM.
+            selected_eta_cache = self.eta_cache_5[K_v_tau-tilde_k_m2]
+        elif ((2 <= n <= K_tau)
+              and (tilde_k_m2 == k_v_n-1) and (tilde_k_m1 == 1)):
+            # Using Eq. (608) of DM.
+            selected_eta_cache = self.eta_cache_3[n-1]
+        elif ((2 <= n <= K_tau-1)
+              and (tilde_k_m2 == k_v_n) and (tilde_k_m1 == 1)):
+            # Using Eq. (609) of DM.
+            selected_eta_cache = self.eta_cache_1[n-1]
+        elif ((2 <= n) and (2 <= tilde_k_m2 <= k_v_n-2)
+              and (tilde_k_m2-tilde_k_m1 <= K_v_tau-1)):
+            # Using Eq. (610) of DM.
+            selected_eta_cache = \
+                self.eta_cache_4[K_v_tau-1-tilde_k_m2+tilde_k_m1]
+        elif ((2 <= n) and (tilde_k_m2 == k_v_n-1)
+              and (max(2, k_v_n-K_v_tau) <= tilde_k_m1 <= k_v_n-1)):
+            # Using Eq. (611) of DM.
+            selected_eta_cache = self.eta_cache_5[K_v_tau-k_v_n+tilde_k_m1]
+        elif ((2 <= n) and (tilde_k_m2 == k_v_n)
+              and (max(0,k_v_n-K_v_tau+1) <= tilde_k_m1 <= k_v_n)):
+            # Using Eq. (612) of DM.
+            selected_eta_cache = self.eta_cache_6[K_v_tau-k_v_n-1+tilde_k_m1]
+
+        self.selected_eta_cache_real_part = selected_eta_cache.real
+        self.selected_eta_cache_imag_part = selected_eta_cache.imag
+
+        return None
+
+
+
+def eval_tilde_k_m(m):
+    r"""This function implements :math:`\tilde{k}_m`, which is introduced in
+    Eq. (70) of the detailed manuscript of our QUAPI-TN approach.
+    """
+    if m % 3 == 0:
+        result = m//3
+    elif m % 3 == 1:
+        result = 2*(m//3)
+    else:
+        result = 2*(m//3)+1
+
+    return result

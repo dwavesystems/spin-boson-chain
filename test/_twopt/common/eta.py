@@ -56,7 +56,7 @@ A_z_0T_1 = \
                                    hard_cutoff_freq=40*omega_z_1_c,
                                    zero_pt_derivative=lambda_z_1)
 
-# A high-frequency subcomponent of spectral density
+# Another subcomponent of spectral density
 def A_z_0T_2_func_form(omega, lambda_z_2, omega_z_2_c):
     return lambda_z_2 * omega * np.exp(-omega / omega_z_2_c)
 
@@ -76,9 +76,9 @@ A_z_T = bath.SpectralDensityCmpnt(limit_0T=A_z_0T, beta=beta)
 
 dt = 0.1
 tilde_w_set = [1.0, 0.5, 1.0, 1.0]
-func_form_of_k_z_n = lambda n: n
+eval_k_z_n = lambda n: n
 
-eta = Eta(A_z_T, dt, tilde_w_set, func_form_of_k_z_n)
+eta = Eta(A_z_T, dt, tilde_w_set, eval_k_z_n)
 
 print("Evaluating eta-function for various (k1, k2, n) triplets:")
 unformatted_msg = "    Evaluating for (k1, k2, n)=({}, {}, {}): Result={}"
