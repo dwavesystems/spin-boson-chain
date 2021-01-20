@@ -150,8 +150,13 @@ class Eta():
         
         self.integration_pts = [0.0]*5
         self.integration_pts[0] = -A_v_T_subcmpnt.limit_0T.hard_cutoff_freq
-        self.integration_pts[1] = \
-            -np.pi / W_var_max if W_var_max != 0 else self.integration_pts[0]
+
+        if W_var_max != 0.0:
+            self.integration_pts[1] = \
+                max(self.integration_pts[0], -np.pi / W_var_max)
+        else:
+            self.integration_pts[1] = self.integration_pts[0]
+            
         self.integration_pts[2] = 0.0
         self.integration_pts[3] = -self.integration_pts[1]
         self.integration_pts[4] = -self.integration_pts[0]

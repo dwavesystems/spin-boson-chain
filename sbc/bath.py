@@ -530,7 +530,10 @@ class SpectralDensitySubcmpnt0T():
     hard_cutoff_freq : `float`
         A hard cutoff frequency. For frequencies ``omega`` satisfying
         ``omega >= hard_cutoff_freq``, :math:`A_{\nu;T=0;\varsigma}(\omega)`
-        evaluates to zero. ``hard_cutoff_freq`` is expected to be positive.
+        evaluates to zero. ``hard_cutoff_freq`` should be chosen such that for
+        any frequencies higher than ``hard_cutoff_freq``, the function
+        ``func_form`` evaluates to a negligibly small number. 
+        ``hard_cutoff_freq`` is expected to be positive.
     zero_pt_derivative : `float` | `None`, optional
         The limit of the derivative of :math:`A_{\nu;T=0;\varsigma}(\omega)` as
         :math:`\omega` approaches zero from the right. If ``zero_pt_derivative``
