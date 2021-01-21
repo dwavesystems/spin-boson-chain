@@ -236,10 +236,10 @@ print("==================")
 
 print("Constructing an instance of bath.Model.\n")
 
-bath_model = bath.Model(spectral_density_y_cmpnt_0T=A_y_0T,
-                        spectral_density_z_cmpnt_0T=A_z_0T,
-                        beta=beta,
-                        tau=0.5)
+bath_model = bath.Model(beta=beta,
+                        tau=0.5,
+                        spectral_density_y_cmpnt_0T=A_y_0T,
+                        spectral_density_z_cmpnt_0T=A_z_0T,)
 
 print("Evaluating finite-temperature spectral density of the yth component of "
       "noise at various frequencies:")
@@ -281,3 +281,23 @@ print(unformatted_msg.format(0.1, 0.1, bath._calc_K_tau(0.1, 0.1)))
 print(unformatted_msg.format(0.175, 0.1, bath._calc_K_tau(0.175, 0.1)))
 print(unformatted_msg.format(0.180, 0.1, bath._calc_K_tau(0.180, 0.1)))
 print(unformatted_msg.format(3.0, 0.1, bath._calc_K_tau(3.0, 0.1)))
+print("\n\n")
+
+
+
+# bath._trivial_spectral_density_cmpnt test #1.
+print("bath._trivial_spectral_density_cmpnt #1")
+print("=======================================")
+
+print("Testing bath._trivial_spectral_density_cmpnt:")
+A_v = bath._trivial_spectral_density_cmpnt
+unformatted_msg = "    Evaluating at omega={}: Result={}"
+print(unformatted_msg.format(0.0, A_v.eval(0.0)))
+print(unformatted_msg.format(5.0e-4, A_v.eval(5.0e-4)))
+print(unformatted_msg.format(-5.0e-4, A_v.eval(-5.0e-4)))
+print(unformatted_msg.format(0.5, A_v.eval(0.5)))
+print(unformatted_msg.format(-0.5, A_v.eval(-0.5)))
+print(unformatted_msg.format(5.0, A_v.eval(5.0)))
+print(unformatted_msg.format(-5.0, A_v.eval(-5.0)))
+
+

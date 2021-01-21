@@ -150,9 +150,9 @@ __status__ = "Non-Production"
 
 
 
-##################################
-## Define classes and functions ##
-##################################
+##############################################
+## Define classes, functions, and instances ##
+##############################################
 
 # List of public objects in objects.
 __all__ = ["SpectralDensityCmpnt",
@@ -627,43 +627,63 @@ class Model():
 
     Parameters
     ----------
-    spectral_density_y_cmpnt_0T : :class:`sbc.bath.SpectralDensityCmpnt0T`
-        The zero-temperature limit of the spectral density of the 
-        :math:`y^{\mathrm{th}}` component of the noise, 
-        :math:`A_{y;T=0}(\omega)`.
-    spectral_density_z_cmpnt_0T : :class:`sbc.bath.SpectralDensityCmpnt0T`
-        The zero-temperature limit of the spectral density of the 
-        :math:`z^{\mathrm{th}}` component of the noise, 
-        :math:`A_{z;T=0}(\omega)`.
     beta : `float`
         The inverse temperature, :math:`\beta=1/(k_B T)`, with :math:`k_B` 
         being the Boltzmann constant and :math:`T` being the temperature.
     tau : `float`
         The bath correlation time, also known as the system's memory 
         :math:`\tau`. ``tau`` is expected to be non-negative.
+    spectral_density_y_cmpnt_0T : :class:`sbc.bath.SpectralDensityCmpnt0T` | `None`, optional
+        If not set to `None`, then ``spectral_density_y_cmpnt_0T`` is the 
+        zero-temperature limit of the spectral density of the 
+        :math:`y^{\mathrm{th}}` component of the noise, 
+        :math:`A_{y;T=0}(\omega)`. If set to `None`, 
+        ``spectral_density_y_cmpnt_0T`` indicates that the environment does not
+        couple to the :math:`y`-components of the system's spins.
+    spectral_density_z_cmpnt_0T : :class:`sbc.bath.SpectralDensityCmpnt0T` | `None`, optional
+        If not set to `None`, then ``spectral_density_z_cmpnt_0T`` is the 
+        zero-temperature limit of the spectral density of the 
+        :math:`z^{\mathrm{th}}` component of the noise, 
+        :math:`A_{z;T=0}(\omega)`. If set to `None`, 
+        ``spectral_density_z_cmpnt_0T`` indicates that the environment does not
+        couple to the :math:`z`-components of the system's spins.
 
     Attributes
     ----------
-    spectral_density_y_cmpnt : :class:`sbc.bath.SpectralDensityCmpnt`, read-only
-        The finite-temperature spectral density of the :math:`y^{\mathrm{th}}` 
-        component of the noise, :math:`A_{y;T}(\omega)`.
-    spectral_density_z_cmpnt : :class:`sbc.bath.SpectralDensityCmpnt`, read-only
-        The finite-temperature spectral density of the :math:`z^{\mathrm{th}}` 
-        component of the noise, :math:`A_{z;T}(\omega)`.
     tau : `float`, read-only
         The bath correlation time, also known as the system's memory 
         :math:`\tau`.
+    spectral_density_y_cmpnt : :class:`sbc.bath.SpectralDensityCmpnt` | `None`, read-only
+        If not set to `None`, then ``spectral_density_y_cmpnt`` is the 
+        finite-temperature  spectral density of the :math:`y^{\mathrm{th}}` 
+        component of the noise, :math:`A_{y;T}(\omega)`. If set to `None`, 
+        ``spectral_density_y_cmpnt`` indicates that the environment does not
+        couple to the :math:`y`-components of the system's spins.
+    spectral_density_z_cmpnt : :class:`sbc.bath.SpectralDensityCmpnt` | `None`, read-only
+        If not set to `None`, then ``spectral_density_z_cmpnt`` is the 
+        finite-temperature  spectral density of the :math:`z^{\mathrm{th}}` 
+        component of the noise, :math:`A_{z;T}(\omega)`. If set to `None`, 
+        ``spectral_density_y_cmpnt`` indicates that the environment does not
+        couple to the :math:`z`-components of the system's spins.
     """
     def __init__(self,
-                 spectral_density_y_cmpnt_0T,
-                 spectral_density_z_cmpnt_0T,
                  beta,
-                 tau):
-        self.spectral_density_y_cmpnt = \
-            SpectralDensityCmpnt(spectral_density_y_cmpnt_0T, beta)
-        self.spectral_density_z_cmpnt = \
-            SpectralDensityCmpnt(spectral_density_z_cmpnt_0T, beta)
+                 tau,
+                 spectral_density_y_cmpnt_0T=None,
+                 spectral_density_z_cmpnt_0T=None):
         self.tau = tau
+        
+        if spectral_density_y_cmpnt_0T == None:
+            self.spectral_density_y_cmpnt = None
+        else:
+            self.spectral_density_y_cmpnt = \
+                SpectralDensityCmpnt(spectral_density_y_cmpnt_0T, beta)
+            
+        if spectral_density_z_cmpnt_0T == None:
+            self.spectral_density_z_cmpnt = None
+        else:
+            self.spectral_density_z_cmpnt = \
+                SpectralDensityCmpnt(spectral_density_z_cmpnt_0T, beta)
 
         return None
 
@@ -676,3 +696,16 @@ def _calc_K_tau(tau, dt):
     K_tau = max(0, ceil((tau - 7.0*dt/4.0) / dt)) + 3
 
     return K_tau
+
+
+
+# Define a trivial spectral density component which always evaluates to zero.
+_trivial_spectral_density_subcmpnt_0T = \
+    SpectralDensitySubcmpnt0T(func_form=lambda omega: 0.0,
+                              func_kwargs={},
+                              hard_cutoff_freq=1.0e-10,
+                              zero_pt_derivative=0.0)
+_trivial_spectral_density_cmpnt_0T = \
+    SpectralDensityCmpnt0T(subcmpnts=[_trivial_spectral_density_subcmpnt_0T])
+_trivial_spectral_density_cmpnt = \
+    SpectralDensityCmpnt(limit_0T=_trivial_spectral_density_cmpnt_0T, beta=1.0)

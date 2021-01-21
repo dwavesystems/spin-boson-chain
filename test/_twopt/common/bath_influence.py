@@ -111,7 +111,7 @@ for K_tau in range(3, 11):
                         else:
                             n1 = n
                             n2 = n
-                        y_bath_influence.set_m1_m2_n(m1, m2, n1)
+                        y_bath_influence.set_k1_k2_n(tilde_k_m1, tilde_k_m2, n1)
                         eta_y_cache = \
                             (y_bath_influence.selected_eta_cache_real_part
                              + 1j*y_bath_influence.selected_eta_cache_imag_part)
@@ -148,7 +148,7 @@ for K_tau in range(3, 11):
                         else:
                             n1 = n
                             n2 = n
-                        z_bath_influence.set_m1_m2_n(m1, m2, n1)
+                        z_bath_influence.set_k1_k2_n(tilde_k_m1, tilde_k_m2, n1)
                         eta_z_cache = \
                             (z_bath_influence.selected_eta_cache_real_part
                              + 1j*z_bath_influence.selected_eta_cache_imag_part)
@@ -171,9 +171,9 @@ print("Found no obvious bugs with eta-function caching.\n")
 
 print("Testing evaluation method.")
 
-for j_r_m1 in range(0, 4):
-    for j_r_m2 in range(0, 4):
-        y_bath_influence.eval(j_r_m1, j_r_m2)
-        z_bath_influence.eval(j_r_m1, j_r_m2)
+for j_r_k1 in range(0, 4):
+    for j_r_k2 in range(0, 4):
+        y_bath_influence.eval(j_r_k1, j_r_k2)
+        z_bath_influence.eval(j_r_k1, j_r_k2)
 
 print("Found no obvious bugs with evaluation method.\n")

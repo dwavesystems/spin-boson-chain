@@ -48,10 +48,10 @@ __status__ = "Non-Production"
 ##################################
 
 class Eta():
-    r"""A class representing the eta-function, :math:`\eta_{\nu; n; k_1; k_2}`, 
-    which is introduced in Eqs. (49)-(59) of the detailed manuscript (DM) on our
-    QUAPI-TN approach. See Appendix D for details on how we evaluate the 
-    eta-function numerically.
+    r"""A class representing the eta-function, 
+    :math:`\eta_{\nu; r; n; k_1; k_2}`, which is introduced in Eqs. (49)-(59) 
+    of the detailed manuscript (DM) on our QUAPI-TN approach. See Appendix D 
+    for details on how we evaluate the eta-function numerically.
     
     Parameters
     ----------
@@ -327,17 +327,27 @@ class Eta():
 
 
 class BathInfluence():
-    r"""A class representing the bath influence function,
-    :math:`\mathring{I}_{\nu; n; m_1; m_2}^{(\mathrm{bath})}
-    \left(j_{r; m_1}, j_{r; m_2}\right)`, which is introduced in Eq. (89) of the
-    detailed manuscript (DM) on our QUAPI-TN approach. 
+    r"""A class representing the bath influence function
+
+    .. math ::
+        I_{\nu; r; n; k_1; k_2}^{(\mathrm{2-pt bath})}
+        \left(j_{r; k_1}, j_{r; k_2}\right) = 
+        I_{\nu; r; n; k_1; k_2}^{(\mathrm{bath})}
+        \left(g_{1}\left(j_{r; k_1}\right), g_{-1}\left(j_{r; k_1}\right)
+        g_{1}\left(j_{r; k_2}\right), g_{-1}\left(j_{r; k_2}\right)\right),
+
+    where :math:`I_{\nu; r; n; k_1; k_2}^{(\mathrm{bath})}\left(\cdots\right)`
+    is introduced in Eq. (47) of the detailed manuscript (DM) on our QUAPI-TN
+    approach, :math:`g_{\alpha}(j)` is introduced in Eq. (73) of the DM, and
+    :math:`j_{r; k_1}` and :math:`j_{r; k_2}` are base-4 variables [see Sec. 3.2
+    of the DM for a discussion of base-4 variables].
     
     Parameters
     ----------
     eta : :class:`sbc._twopt.common.Eta`
-        The eta-function, :math:`\eta_{\nu; n; k_1; k_2}`, which is introduced 
-        in Eqs. (49)-(59) of the DM. See Appendix D for details on how we 
-        evaluate the eta-function numerically.
+        The eta-function, :math:`\eta_{\nu; r; n; k_1; k_2}`, which is 
+        introduced in Eqs. (49)-(59) of the DM. See Appendix D for details on 
+        how we evaluate the eta-function numerically.
     K_tau : `int`
         This is the quantity :math:`K_{\tau}` that appears throughtout the DM,
         where :math:`\tau` indicates the bath correlation time, or the system's 
@@ -355,7 +365,7 @@ class BathInfluence():
 
         self.calc_eta_caches(eta)
 
-        self.set_m1_m2_n(0, 0, 1)
+        self.set_k1_k2_n(0, 0, 1)
 
         return None
 
@@ -364,9 +374,9 @@ class BathInfluence():
     def calc_eta_caches(self, eta):
         r"""In Sec. D.1 of the detailed manuscript (DM) of our QUAPI-TN
         approach, we discuss why is it computationally beneficial to calculate
-        only the :math:`\eta_{\nu; n; k_1; k_2}` that are required for a full
+        only the :math:`\eta_{\nu; r; n; k_1; k_2}` that are required for a full
         simulation, cache them, and then reuse the results wherever possible.
-        This method calculates the :math:`\eta_{\nu; n; k_1; k_2}` that are
+        This method calculates the :math:`\eta_{\nu; r; n; k_1; k_2}` that are
         required and caches them.
         """
         K_tau = self.K_tau
@@ -437,34 +447,34 @@ class BathInfluence():
 
 
 
-    def eval(self, j_r_m1, j_r_m2):
+    def eval(self, j_r_k1, j_r_k2):
         r"""Evaluate the bath influence function
-        :math:`\mathring{I}_{\nu; n; m_1; m_2}^{(\mathrm{bath})}
-        \left(j_{r; m_1}, j_{r; m_2}\right)`, which is introduced in Eq. (89)
-        of the detailed manuscript (DM) on our QUAPI-TN approach.
+        :math:`I_{\nu; r; n; k_1; k_2}^{(\mathrm{2-pt bath})}
+        \left(j_{r; k_1}, j_{r; k_2}\right)` [see constructor documentation for
+        the definition of the bath influence function].
 
         Parameters
         ----------
-        j_r_m1 : ``0`` | ``1`` | ``2`` | ``3``
-            The base-4 variable :math:`j_{r; m_1}`.
-        j_r_m2 : ``0`` | ``1`` | ``2`` | ``3``
-            The base-4 variable :math:`j_{r; m_2}`.
+        j_r_k1 : ``0`` | ``1`` | ``2`` | ``3``
+            The base-4 variable :math:`j_{r; k_1}`.
+        j_r_k2 : ``0`` | ``1`` | ``2`` | ``3``
+            The base-4 variable :math:`j_{r; k_2}`.
         """
         # The "eta cache" is selected in the call to the method
-        # :meth:`sbc._twopt.common.BathInfluence.set_m1_m2_n`, which first
-        # sets :math:`m_1`, :math:`m_2`, and :math:`n`.
+        # :meth:`sbc._twopt.common.BathInfluence.set_k1_k2_n`, which first
+        # sets :math:`k_1`, :math:`k_2`, and :math:`n`.
         eta_real_part = self.selected_eta_cache_real_part
         eta_imag_part = self.selected_eta_cache_imag_part
         
         # Convert base-4 variables to Ising spin pairs. See Sec. 3.2 of DM for
         # a discussion on such conversions.
-        sigma_r_pos1_m1, sigma_r_neg1_m1 = base_4_to_ising_pair(j_r_m1)
-        sigma_r_pos1_m2, sigma_r_neg1_m2 = base_4_to_ising_pair(j_r_m2)
+        sigma_r_pos1_k1, sigma_r_neg1_k1 = base_4_to_ising_pair(j_r_k1)
+        sigma_r_pos1_k2, sigma_r_neg1_k2 = base_4_to_ising_pair(j_r_k2)
 
         # Implement Eq. (48) of DM.
-        gamma = ((sigma_r_pos1_m2-sigma_r_neg1_m2)
-                 * ((sigma_r_pos1_m1-sigma_r_neg1_m1) * eta_real_part
-                    + 1.0j * (sigma_r_pos1_m1+sigma_r_neg1_m1) * eta_imag_part))
+        gamma = ((sigma_r_pos1_k2-sigma_r_neg1_k2)
+                 * ((sigma_r_pos1_k1-sigma_r_neg1_k1) * eta_real_part
+                    + 1.0j * (sigma_r_pos1_k1+sigma_r_neg1_k1) * eta_imag_part))
 
         # Implement Eq. (47) of DM.
         result = np.exp(-gamma)
@@ -473,106 +483,103 @@ class BathInfluence():
 
 
 
-    def set_m1_m2_n(self, m1, m2, n):
-        r"""Set the :math:`n`, :math:`m_1`, and :math:`m_2` in the bath
+    def set_k1_k2_n(self, k1, k2, n):
+        r"""Set the :math:`n`, :math:`k_1`, and :math:`k_2` in the bath
         influence function 
-        :math:`\mathring{I}_{\nu; n; m_1; m_2}^{(\mathrm{bath})}
-        \left(j_{r; m_1}, j_{r; m_2}\right)`
-        which is introduced in Eq. (89) of the detailed manuscript (DM) on our 
-        QUAPI-TN approach. 
+        :math:`I_{\nu; r; n; k_1; k_2}^{(\mathrm{2-pt bath})}
+        \left(j_{r; k_1}, j_{r; k_2}\right)` [see constructor documentation for
+        the definition of the bath influence function].
         """
-        tilde_k_m1 = eval_tilde_k_m(m=m1)
-        tilde_k_m2 = eval_tilde_k_m(m=m2)
         K_tau = self.K_tau
         K_v_tau = self.K_v_tau
         k_v_n = self.eval_k_v_n(n)
 
         if n == 1:
-            if (tilde_k_m2 == 0) and (tilde_k_m1 == 0):
+            if (k2 == 0) and (k1 == 0):
                 # Using Eq. (594) of DM.
                 selected_eta_cache = self.eta_cache_6[K_v_tau-1]
-            elif (tilde_k_m2 == 1) and (tilde_k_m1 == 0):
+            elif (k2 == 1) and (k1 == 0):
                 # Using Eq. (595) of DM.
                 if k_v_n == 2:
                     selected_eta_cache = self.eta_cache_1[0]
                 else:
                     selected_eta_cache = self.eta_cache_6[K_v_tau-2]
-            elif (tilde_k_m2 == 1) and (tilde_k_m1 == 1):
+            elif (k2 == 1) and (k1 == 1):
                 # Using Eq. (596) of DM.
                 if k_v_n == 2:
                     selected_eta_cache = self.eta_cache_3[0]
                 else:
                     selected_eta_cache = self.eta_cache_6[K_v_tau-1]
-            elif (tilde_k_m2 == 2) and (tilde_k_m1 == 0):
+            elif (k2 == 2) and (k1 == 0):
                 # Using Eq. (597) of DM.
                 if k_v_n == 2:
                     selected_eta_cache = self.eta_cache_2[0]
                 else:
                     selected_eta_cache = self.eta_cache_1[0]
-            elif (tilde_k_m2 == 2) and (tilde_k_m1 == 1):
+            elif (k2 == 2) and (k1 == 1):
                 # Using Eq. (598) of DM.
                 if k_v_n == 2:
                     selected_eta_cache = self.eta_cache_1[0]
                 else:
                     selected_eta_cache = self.eta_cache_6[K_v_tau-2]
-            elif (tilde_k_m2 == k_v_n-1) and (tilde_k_m1 == k_v_n-1):
+            elif (k2 == k_v_n-1) and (k1 == k_v_n-1):
                 # Using Eq. (599) of DM.
                 if k_v_n == 2:
                     selected_eta_cache = self.eta_cache_3[0]
                 else:
                     selected_eta_cache = self.eta_cache_6[K_v_tau-1]
-            elif (tilde_k_m2 == k_v_n) and (tilde_k_m1 == 0):
+            elif (k2 == k_v_n) and (k1 == 0):
                 # Using Eq. (600) of DM.
                 selected_eta_cache = self.eta_cache_2[0]
-            elif (tilde_k_m2 == k_v_n) and (tilde_k_m1 == 1):
+            elif (k2 == k_v_n) and (k1 == 1):
                 # Using Eq. (601) of DM.
                 selected_eta_cache = self.eta_cache_1[0]
-            elif (tilde_k_m2 == k_v_n) and (tilde_k_m1 == k_v_n-1):
+            elif (k2 == k_v_n) and (k1 == k_v_n-1):
                 # Using Eq. (602) of DM.
                 if k_v_n == 2:
                     selected_eta_cache = self.eta_cache_1[0]
                 else:
                     selected_eta_cache = self.eta_cache_6[K_v_tau-2]
-            elif (tilde_k_m2 == k_v_n) and (tilde_k_m1 == k_v_n):
+            elif (k2 == k_v_n) and (k1 == k_v_n):
                 # Using Eq. (603) of DM.
                 selected_eta_cache = self.eta_cache_6[K_v_tau-1]
-        elif ((2 <= n) and (0 <= tilde_k_m2 <= min(K_v_tau-1, k_v_n-2))
-              and (tilde_k_m1 == 0)):
+        elif ((2 <= n) and (0 <= k2 <= min(K_v_tau-1, k_v_n-2))
+              and (k1 == 0)):
             # Using Eq. (604) of DM.
-            selected_eta_cache = self.eta_cache_6[K_v_tau-1-tilde_k_m2]
+            selected_eta_cache = self.eta_cache_6[K_v_tau-1-k2]
         elif ((2 <= n <= K_tau-1)
-              and (tilde_k_m2 == k_v_n-1) and (tilde_k_m1 == 0)):
+              and (k2 == k_v_n-1) and (k1 == 0)):
             # Using Eq. (605) of DM.
             selected_eta_cache = self.eta_cache_1[n-1]
         elif ((2 <= n <= K_tau-2+(K_v_tau/(2*K_tau)))
-              and (tilde_k_m2 == k_v_n) and (tilde_k_m1 == 0)):
+              and (k2 == k_v_n) and (k1 == 0)):
             # Using Eq. (606) of DM.
             selected_eta_cache = self.eta_cache_2[n-1]
-        elif ((2 <= n) and (1 <= tilde_k_m2 <= min(K_v_tau, k_v_n-2))
-              and (tilde_k_m1 == 1)):
+        elif ((2 <= n) and (1 <= k2 <= min(K_v_tau, k_v_n-2))
+              and (k1 == 1)):
             # Using Eq. (607) of DM.
-            selected_eta_cache = self.eta_cache_5[K_v_tau-tilde_k_m2]
+            selected_eta_cache = self.eta_cache_5[K_v_tau-k2]
         elif ((2 <= n <= K_tau)
-              and (tilde_k_m2 == k_v_n-1) and (tilde_k_m1 == 1)):
+              and (k2 == k_v_n-1) and (k1 == 1)):
             # Using Eq. (608) of DM.
             selected_eta_cache = self.eta_cache_3[n-1]
         elif ((2 <= n <= K_tau-1)
-              and (tilde_k_m2 == k_v_n) and (tilde_k_m1 == 1)):
+              and (k2 == k_v_n) and (k1 == 1)):
             # Using Eq. (609) of DM.
             selected_eta_cache = self.eta_cache_1[n-1]
-        elif ((2 <= n) and (2 <= tilde_k_m2 <= k_v_n-2)
-              and (tilde_k_m2-tilde_k_m1 <= K_v_tau-1)):
+        elif ((2 <= n) and (2 <= k2 <= k_v_n-2)
+              and (k2-k1 <= K_v_tau-1)):
             # Using Eq. (610) of DM.
             selected_eta_cache = \
-                self.eta_cache_4[K_v_tau-1-tilde_k_m2+tilde_k_m1]
-        elif ((2 <= n) and (tilde_k_m2 == k_v_n-1)
-              and (max(2, k_v_n-K_v_tau) <= tilde_k_m1 <= k_v_n-1)):
+                self.eta_cache_4[K_v_tau-1-k2+k1]
+        elif ((2 <= n) and (k2 == k_v_n-1)
+              and (max(2, k_v_n-K_v_tau) <= k1 <= k_v_n-1)):
             # Using Eq. (611) of DM.
-            selected_eta_cache = self.eta_cache_5[K_v_tau-k_v_n+tilde_k_m1]
-        elif ((2 <= n) and (tilde_k_m2 == k_v_n)
-              and (max(0,k_v_n-K_v_tau+1) <= tilde_k_m1 <= k_v_n)):
+            selected_eta_cache = self.eta_cache_5[K_v_tau-k_v_n+k1]
+        elif ((2 <= n) and (k2 == k_v_n)
+              and (max(0,k_v_n-K_v_tau+1) <= k1 <= k_v_n)):
             # Using Eq. (612) of DM.
-            selected_eta_cache = self.eta_cache_6[K_v_tau-k_v_n-1+tilde_k_m1]
+            selected_eta_cache = self.eta_cache_6[K_v_tau-k_v_n-1+k1]
 
         self.selected_eta_cache_real_part = selected_eta_cache.real
         self.selected_eta_cache_imag_part = selected_eta_cache.imag
