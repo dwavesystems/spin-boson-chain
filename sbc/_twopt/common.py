@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-r"""This module contains classes representing two-point (i.e. two-time) 
-functions that are common to both the "yz-noise" and "z-noise" algorithms.
+r"""This module contains classes representing two-point functions that are 
+common to both the "yz-noise" and "z-noise" algorithms.
 """
 
 
@@ -8,9 +8,6 @@ functions that are common to both the "yz-noise" and "z-noise" algorithms.
 #####################################
 ## Load libraries/packages/modules ##
 #####################################
-
-# For defining abstract classes.
-from abc import ABC, abstractmethod
 
 # Import factorial function.
 from math import factorial
@@ -55,13 +52,13 @@ class Eta():
     
     Parameters
     ----------
-    A_v_T : :class:`sbc.bath.SpectralDensityCmpnt`
-        The finite-temperature spectral density of some component of noise of
-        interest. The quantity is denoted by :math:`A_{\nu;T}(\omega)` in the
-        DM, where :math:`\nu\in\{y,z\}` indicates the component of noise of
-        interest.
+    A_v_r_T : :class:`sbc.bath.SpectralDensity`
+        The spectral density of noise at temperature :math:`T`, where the noise
+        is coupled to the :math:`\nu^{\mathrm{th}}`-component of the spin at 
+        site :math:`r`. We denote this spectral density of noise by 
+        :math:`A_{\nu;r;T}(\omega)`. 
     dt : `float`
-        The time step size.
+        The simulation time step size.
     tilde_w_set : `array_like` (`float`, shape=(4,))
         This is the array :math:`\left(\tilde{w}_{\nu}, \tilde{w}_{\nu; 0},
         \tilde{w}_{\nu; 1}, \tilde{w}_{\nu; 2}\right)`, which is introduced in
@@ -71,8 +68,8 @@ class Eta():
         of the DM. The function's argument is :math:`n`, i.e. :math:`\nu` is
         treated as fixed.
     """
-    def __init__(self, A_v_T, dt, tilde_w_set, eval_k_v_n):
-        self.A_v_T = A_v_T
+    def __init__(self, A_v_r_T, dt, tilde_w_set, eval_k_v_n):
+        self.A_v_r_T = A_v_r_T
         self.dt = dt
         self.tilde_w_v = tilde_w_set[0]
         self.tilde_w_v_0 = tilde_w_set[1]
@@ -90,12 +87,12 @@ class Eta():
         self.update_W_vars(k1, k2, n)
 
         result = 0.0j
-        for A_v_T_subcmpnt in self.A_v_T.subcmpnts:
-            # For each ``A_v_T_subcmpnt`` we are evaluating Eq. (642) of DM.
-            self.update_integration_pts(A_v_T_subcmpnt)
+        for A_v_r_T_cmpnt in self.A_v_r_T.cmpnts:
+            # For each ``A_v_r_T_cmpnt`` we are evaluating Eq. (642) of DM.
+            self.update_integration_pts(A_v_r_T_cmpnt)
             for a in range(0, 4):
-                result += self.eval_real_cmpnt(A_v_T_subcmpnt, a)
-                result += 1j*self.eval_imag_cmpnt(k1, k2, A_v_T_subcmpnt, a)
+                result += self.eval_real_cmpnt(A_v_r_T_cmpnt, a)
+                result += 1j*self.eval_imag_cmpnt(k1, k2, A_v_r_T_cmpnt, a)
         
         return result
 
@@ -140,7 +137,7 @@ class Eta():
 
 
 
-    def update_integration_pts(self, A_v_T_subcmpnt):
+    def update_integration_pts(self, A_v_r_T_cmpnt):
         r"""The ``integration_pts`` are the 
         :math:`\omega_{\nu; n; k_1; k_2; \varsigma; a}`
         which are introduced in Eq. (647) of the detailed manuscript (DM)
@@ -149,7 +146,7 @@ class Eta():
         W_var_max = max(self.W_vars)
         
         self.integration_pts = [0.0]*5
-        self.integration_pts[0] = -A_v_T_subcmpnt.limit_0T.hard_cutoff_freq
+        self.integration_pts[0] = -A_v_r_T_cmpnt.limit_0T.hard_cutoff_freq
 
         if W_var_max != 0.0:
             self.integration_pts[1] = \
@@ -165,40 +162,40 @@ class Eta():
 
 
 
-    def eval_real_cmpnt(self, A_v_T_subcmpnt, a):
+    def eval_real_cmpnt(self, A_v_r_T_cmpnt, a):
         r"""'DM' refers to the detailed manuscript on our QUAPI+TN approach.
         """
         if (a == 1) or (a == 2):
             # Evaluate Eq. (643) of DM.
-            result = self.eval_integral_type_R1(A_v_T_subcmpnt, a)
+            result = self.eval_integral_type_R1(A_v_r_T_cmpnt, a)
         else:
             # Evaluate Eq. (645) of DM.
             result = 0.0
             for l in range(0, 4):
-                result += self.eval_integral_type_R2(A_v_T_subcmpnt, a, l)
+                result += self.eval_integral_type_R2(A_v_r_T_cmpnt, a, l)
 
         return result
 
 
 
-    def eval_imag_cmpnt(self, k1, k2, A_v_T_subcmpnt, a):
+    def eval_imag_cmpnt(self, k1, k2, A_v_r_T_cmpnt, a):
         r"""'DM' refers to the detailed manuscript on our QUAPI+TN approach.
         """
         if (a == 1) or (a == 2):
             # Evaluate Eq. (644) of DM.
-            result = self.eval_integral_type_I1(k1, k2, A_v_T_subcmpnt, a)
+            result = self.eval_integral_type_I1(k1, k2, A_v_r_T_cmpnt, a)
         else:
             # Evaluate Eq. (646) of DM.
             result = 0.0
             for l in range(0, 4):
                 result += self.eval_integral_type_I2(k1, k2,
-                                                     A_v_T_subcmpnt, a, l)
+                                                     A_v_r_T_cmpnt, a, l)
 
         return result
 
 
 
-    def eval_integral_type_R1(self, A_v_T_subcmpnt, a):
+    def eval_integral_type_R1(self, A_v_r_T_cmpnt, a):
         r"""This method evaluates Eq. (643) of the detailed manuscript (DM) on 
         our QUAPI+TN approach.
         """
@@ -227,7 +224,7 @@ class Eta():
                         / omega / omega)
 
         # See discussion below Eq. (654) of DM.
-        integrand = lambda omega: (A_v_T_subcmpnt._eval(omega)
+        integrand = lambda omega: (A_v_r_T_cmpnt._eval(omega)
                                    * F(omega) / 2.0 / pi)
         result = quad(integrand, a=pt1, b=pt2, limit=2000)[0]
 
@@ -235,7 +232,7 @@ class Eta():
             
 
 
-    def eval_integral_type_R2(self, A_v_T_subcmpnt, a, l):
+    def eval_integral_type_R2(self, A_v_r_T_cmpnt, a, l):
         r"""This method evaluates Eq. (652) of the detailed manuscript (DM) on 
         our QUAPI+TN approach.
         """
@@ -251,7 +248,7 @@ class Eta():
         pi = np.pi
 
         # See discussion below Eq. (654) of DM.
-        integrand = lambda omega: (sign_prefactor * A_v_T_subcmpnt._eval(omega)
+        integrand = lambda omega: (sign_prefactor * A_v_r_T_cmpnt._eval(omega)
                                    / omega / omega / 2.0 / pi)
         if W_var == 0:
             result = quad(integrand, a=pt1, b=pt2, limit=2000)[0]
@@ -263,7 +260,7 @@ class Eta():
 
 
 
-    def eval_integral_type_I1(self, k1, k2, A_v_T_subcmpnt, a):
+    def eval_integral_type_I1(self, k1, k2, A_v_r_T_cmpnt, a):
         r"""This method evaluates Eq. (644) of the detailed manuscript (DM) on 
         our QUAPI+TN approach.
         """
@@ -293,7 +290,7 @@ class Eta():
                         / omega / omega)
 
         # See discussion below Eq. (654) of DM.
-        integrand = lambda omega: (A_v_T_subcmpnt._eval(omega)
+        integrand = lambda omega: (A_v_r_T_cmpnt._eval(omega)
                                    * F(omega) / 2.0 / pi)
         result = quad(integrand, a=pt1, b=pt2, limit=2000)[0]
 
@@ -301,7 +298,7 @@ class Eta():
             
 
 
-    def eval_integral_type_I2(self, k1, k2, A_v_T_subcmpnt, a, l):
+    def eval_integral_type_I2(self, k1, k2, A_v_r_T_cmpnt, a, l):
         r"""This method evaluates Eq. (653) of the detailed manuscript (DM) on 
         our QUAPI+TN approach.
         """
@@ -317,7 +314,7 @@ class Eta():
         pi = np.pi
 
         # See discussion below Eq. (654) of DM.
-        integrand = lambda omega: (sign_prefactor * A_v_T_subcmpnt._eval(omega)
+        integrand = lambda omega: (sign_prefactor * A_v_r_T_cmpnt._eval(omega)
                                    / omega / omega / 2.0 / pi)
         result = quad(integrand, a=pt1, b=pt2, weight="sin", wvar=W_var,
                       limit=2000*int(abs((pt2-pt1)/pt1)+1))[0]
@@ -348,6 +345,11 @@ class BathInfluence():
         The eta-function, :math:`\eta_{\nu; r; n; k_1; k_2}`, which is 
         introduced in Eqs. (49)-(59) of the DM. See Appendix D for details on 
         how we evaluate the eta-function numerically.
+    coupling_energy_scale : :class:`sbc.scalar.Scalar`
+        The energy scale :math:`\mathcal{E}_{\nu;r}^{(\lambda)}(t)`
+        [introduced in Eq. :eq:`bath_generalized_reservoir_force`] associated 
+        with the coupling between the environment and the :math:`\nu`-component
+        of the spin at site :math:`r`.
     K_tau : `int`
         This is the quantity :math:`K_{\tau}` that appears throughtout the DM,
         where :math:`\tau` indicates the bath correlation time, or the system's 
@@ -358,7 +360,8 @@ class BathInfluence():
         :math:`\tau` indicates the bath correlation time, or the system's 
         "memory". The :math:`K_{\nu; \tau}` are given by Eqs. (65) and (66).
     """
-    def __init__(self, eta, K_tau, K_v_tau):
+    def __init__(self, eta, coupling_energy_scale, K_tau, K_v_tau):
+        self.coupling_energy_scale = coupling_energy_scale
         self.K_tau = K_tau
         self.K_v_tau = K_v_tau
         self.eval_k_v_n = eta.eval_k_v_n
@@ -461,8 +464,7 @@ class BathInfluence():
             The base-4 variable :math:`j_{r; k_2}`.
         """
         # The "eta cache" is selected in the call to the method
-        # :meth:`sbc._twopt.common.BathInfluence.set_k1_k2_n`, which first
-        # sets :math:`k_1`, :math:`k_2`, and :math:`n`.
+        # :meth:`sbc._twopt.common.BathInfluence.set_k1_k2_n`.
         eta_real_part = self.selected_eta_cache_real_part
         eta_imag_part = self.selected_eta_cache_imag_part
         
@@ -493,6 +495,10 @@ class BathInfluence():
         K_tau = self.K_tau
         K_v_tau = self.K_v_tau
         k_v_n = self.eval_k_v_n(n)
+
+        t1 = 
+        coupling_energy_scale = self.coupling_energy_scale
+        self.coupling_energy_scale_at_k1 = coupling_energy_scale
 
         if n == 1:
             if (k2 == 0) and (k1 == 0):
@@ -585,6 +591,102 @@ class BathInfluence():
         self.selected_eta_cache_imag_part = selected_eta_cache.imag
 
         return None
+
+
+
+class TfInfluence():
+    r"""A class representing a sort of generalized transverse field influence
+    function, i.e. a generalization to the influence function introduced in
+    Eq. (43) of the detailed manuscript (DM) on our QUAPI-TN approach. This 
+    class is intended to be used in both the 'yz-noise' and 'z-noise' 
+    algorithms. Eventually we will update the DM to include this generalized
+    transverse field influence function.
+    
+    Parameters
+    ----------
+    r : `int`
+        The site index :math:`r`. If the system has ``L`` spins, then 
+        ``0<=r<L``.
+    system_model : :class:`sbc.system.Model`
+        The system model parameters.
+    dt : `float`
+        The simulation time step size.
+    spin_basis : "y" | "z"
+        The spin basis in which the transverse field influence function is
+        being evaluated. The "yz-noise" algorithm evaluates the influence 
+        function in the :math:`y`-spin basis, whereas the "z-noise" algorithm
+        evaluates the influence function in the :math:`z`-spin basis.
+    """
+    def __init__(self, r, system_model, dt, spin_basis):
+        self.x_field = system_model.x_fields[r]
+        self.dt = dt
+        self.c = 1 if spin_basis=="y" else 2
+
+        self.set_k_n(0, 1)
+
+        return None
+
+
+
+    def set_k_n(self, k, n):
+        r"""Set the :math:`n`, :math:`k`, and :math:`k_2` in the generalized
+        transverse field influence function.
+        """
+        dt = self.dt
+
+        # Set the quantity introduced in Eq. (34) of the detailed manuscript
+        # on our QUAPI-TN approach.
+        if (k == 0) or (k == n):
+            w_n_k = 0.5
+        else:
+            w_n_k = 1
+
+        # Set t_k which appears in Eq. (233) of DM.
+        t_k = k * dt
+
+        # Evaluate x-field at time t_k.
+        h_x_r_k = self.x_field.eval(t_k)
+
+        # Set quantity introduced in Eq. (45) of DM.
+        theta_r_n_k = 2 * dt * w_n_k * h_x_r_k
+
+        self.cos_cache = np.cos(theta_r_n_k / 2)
+        self.sin_cache = np.sin(theta_r_n_k / 2)
+
+        return None
+
+
+
+    def eval(self, j_r_m1, j_r_m2):
+        r"""Evaluate the generalized transverse field influence function.
+
+        Parameters
+        ----------
+        j_r_m1 : ``0`` | ``1`` | ``2`` | ``3``
+            The first base-4 variable.
+        j_r_m2 : ``0`` | ``1`` | ``2`` | ``3``
+            The second base-4 variable.
+        """
+        # Retrieve cached terms set in the call to method
+        # :meth:`sbc._twopt.common.TfInfluence.set_k_n`.
+        cos_cache = self.cos_cache
+        sin_cache = self.sin_cache
+
+        # Convert base-4 variables to Ising spin pairs. See Sec. 3.2 of DM for
+        # a discussion on such conversions.
+        sigma_r_pos1_m1, sigma_r_neg1_m1 = base_4_to_ising_pair(j_r_m1)
+        sigma_r_pos1_m2, sigma_r_neg1_m2 = base_4_to_ising_pair(j_r_m2)
+
+        # Implement generalization to Eq. (44) of DM.
+        c = self.c
+        result = (0.25 * (sigma_r_pos1_m1+sigma_r_pos1_m2)**2 * cos_cache
+                  + (1.0j**(1+c) * (0.5 * (sigma_r_pos1_m1-sigma_r_pos1_m2))**c
+                     * sin_cache))
+        result *= (0.25 * (sigma_r_neg1_m1+sigma_r_neg1_m2)**2 * cos_cache
+                   - (1.0j**(1+c) * (0.5 * (sigma_r_neg1_m1-sigma_r_neg1_m2))**c
+                      * sin_cache))
+
+        return result
 
 
 

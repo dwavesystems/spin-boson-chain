@@ -25,6 +25,7 @@ operations.
 
 
 # Load modules.
+from . import scalar
 from . import system
 from . import bath
 from . import tn

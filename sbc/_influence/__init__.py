@@ -1,9 +1,7 @@
 #!/usr/bin/env python
-r"""This subpackage contains classes representing two-point (i.e. two-time)
-functions that occur in our QUAPI-TN approach. ``sbc`` is structured so that
-there is an algorithm for handling systems with sigma-y and sigma-z noise,
-which we refer to as the "yz-noise" algorithm, and an algorithm for handling
-systems with sigma-z noise only, which we refer to as the "z-noise" algorithm.
+r"""This subpackage contains classes representing quantities related to
+influence functions, and influence path/functionals in our QUAPI formalism, upon
+which ``sbc`` is based.
 """
 
 
@@ -13,7 +11,9 @@ systems with sigma-z noise only, which we refer to as the "z-noise" algorithm.
 #####################################
 
 # Import submodules of subpackage.
-from . import common, yznoise
+from . import eta
+from . import twopt
+from . import tensorfactory
 
 
 

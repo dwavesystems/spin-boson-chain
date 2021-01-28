@@ -13,6 +13,7 @@ sbc reference guide
 .. autosummary::
     :toctree: reference
 
+    scalar
     system
     bath
     tn

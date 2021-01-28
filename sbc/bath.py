@@ -8,14 +8,14 @@ only the :math:`z`-components. The Hamiltonian of this model can be broken down
 into the following components:
 
 .. math ::
-    \hat{H}(t) = \hat{H}^{(A)}(t) + \hat{H}^{(B)} + \hat{H}^{(AB)},
+    \hat{H}(t) = \hat{H}^{(A)}(t) + \hat{H}^{(B)} + \hat{H}^{(AB)}(t),
     :label: bath_total_Hamiltonian
 
 where :math:`\hat{H}^{(A)}(t)` is the system Hamiltonian, which encodes all
 information regarding energies associated exclusively with the spins; 
 :math:`\hat{H}^{(B)}` is the bath Hamiltonian, which encodes all information
 regarding energies associated with the components of the bosonic environment; 
-and :math:`\hat{H}^{(AB)}` is the system-bath coupling Hamiltonian, which 
+and :math:`\hat{H}^{(AB)}(t)` is the system-bath coupling Hamiltonian, which 
 describes all energies associated with the coupling between the system and the 
 environment.
 
@@ -23,7 +23,7 @@ The bath Hamiltonian :math:`\hat{H}^{(B)}` describes a collection of decoupled
 harmonic oscillators:
 
 .. math ::
-    \hat{H}^{(B)} = \sum_{r=1}^{L}\sum_{\epsilon} 
+    \hat{H}^{(B)} = \sum_{r=0}^{L-1}\sum_{\epsilon} 
     \left\{\omega_{y; \epsilon} \hat{b}_{y; r; \epsilon}^{\dagger} 
     \hat{b}_{y; r; \epsilon}^{\vphantom{\dagger}}
     + \omega_{z; \epsilon} \hat{b}_{z; r; \epsilon}^{\dagger} 
@@ -35,57 +35,68 @@ with :math:`\epsilon` being the oscillator mode index,
 :math:`\hat{b}_{\nu; r; \epsilon}^{\vphantom{\dagger}}` being the bosonic
 creation and annihilation operators respectively for the harmonic oscillator at
 site :math:`r` in mode :math:`\epsilon` with angular frequency 
-:math:`\omega_{\nu; \epsilon}`, coupled to the :math:`\nu^{\mathrm{th}}` 
-component of the spin at the same site.
+:math:`\omega_{\nu; \epsilon}`, coupled to the :math:`\nu`-component of the spin
+at the same site.
 
-The system-bath coupling Hamiltonian :math:`\hat{H}^{(AB)}` is given by
+The system-bath coupling Hamiltonian :math:`\hat{H}^{(AB)}(t)` is given by
 
 .. math ::
-    \hat{H}^{(AB)}=-\sum_{r=1}^{L}\left\{
-    \hat{\sigma}_{y;r}\hat{\mathcal{Q}}_{y;r}
-    + \hat{\sigma}_{z;r}\hat{\mathcal{Q}}_{z;r}\right\},
+    \hat{H}^{(AB)}(t)=-\sum_{r=0}^{L-1}\left\{
+    \hat{\sigma}_{y;r}\hat{\mathcal{Q}}_{y;r}(t)
+    + \hat{\sigma}_{z;r}\hat{\mathcal{Q}}_{z;r}(t)\right\},
     :label: bath_system_bath_hamiltonian
 
-where :math:`\hat{\mathcal{Q}}_{\nu;r}` is the generalized
+where :math:`\hat{\mathcal{Q}}_{\nu;r}(t)` is the generalized
 reservoir force operator at site :math:`r` that acts on the 
-:math:`\nu^{\mathrm{th}}` component of the spin at the same site:
+:math:`\nu`-component of the spin at the same site:
 
 .. math ::
-    \hat{\mathcal{Q}}_{\nu;r}=-\sum_{\epsilon}\lambda_{\nu;\epsilon}
-    \left\{ \hat{b}_{\nu;r;\epsilon}^{\dagger}
-    +\hat{b}_{\nu;r;\epsilon}^{\vphantom{\dagger}}\right\},
+    \hat{\mathcal{Q}}_{\nu;r}(t)=\mathcal{E}_{\nu;r}^{(\lambda)}(t)
+    \hat{Q}_{\nu;r},
     :label: bath_generalized_reservoir_force
 
-with :math:`\lambda_{\nu;\epsilon}` being the coupling strength between the
-:math:`\nu^{\mathrm{th}}` component of a spin and the harmonic oscillator at the
-same site in mode :math:`\epsilon`. 
-
-Rather than specify the model parameters of bath and system-bath coupling, one
-can alternatively specify the spectral densities of the :math:`y^{\mathrm{th}}`-
-and :math:`z^{\mathrm{th}}`-components of the noise at temperature :math:`T`,
-which contain the same information as the aforementioned model parameters.
-This alternative approach is easier to incorporate into the QUAPI formalism,
-upon which ``sbc`` is based on.
-
-The spectral density of the :math:`\nu^{\mathrm{th}}`-component of the noise at
-temperature :math:`T` is defined as:
+with :math:`\mathcal{E}_{\nu;r}^{(\lambda)}(t)` being a time-dependent energy
+scale, :math:`\hat{Q}_{\nu;r}` being a rescaled generalized reservoir force:
 
 .. math ::
-    A_{\nu;T}(\omega)=\int_{-\infty}^{\infty}dt\,e^{i\omega t}C_{\nu;T}(t),
-    :label: bath_spectral_density_cmpnt_1
+    \hat{Q}_{\nu;r}=-\sum_{\epsilon}\lambda_{\nu;r;\epsilon}
+    \left\{ \hat{b}_{\nu;r;\epsilon}^{\dagger}
+    +\hat{b}_{\nu;r;\epsilon}^{\vphantom{\dagger}}\right\},
+    :label: bath_rescaled_generalized_reservoir_force
 
-where :math:`C_{\nu;T}(t)` is the :math:`\nu^{\mathrm{th}}`-component of the
-bath correlation function at temperature :math:`T`:
+:math:`\lambda_{\nu;r;\epsilon}` being the coupling strength between the
+:math:`\nu`-component of the spin at site :math:`r` and the harmonic oscillator 
+at the same site in mode :math:`\epsilon`. 
+
+Rather than specify the bath model parameters :math:`\omega_{\nu; \epsilon}` and
+:math:`\lambda_{\nu;r;\epsilon}`, one can alternatively specify the spectral
+densities of noise coupled to the :math:`y`- and :math:`z`-components of the 
+system's spins at temperature :math:`T`, which contain the same information as 
+the aforementioned model parameters. This alternative approach is easier to 
+incorporate into the QUAPI formalism, upon which ``sbc`` is based on.
+
+We define the spectral density of the noise coupled to the :math:`\nu`-component
+of the spin at site :math:`r` and temperature :math:`T` as:
 
 .. math ::
-    C_{\nu;T}(t)=\text{Tr}^{(B)}\left\{ \hat{\rho}^{(i,B)}
-    \hat{\mathcal{Q}}_{\nu;r=1}^{(B)}(t)
-    \hat{\mathcal{Q}}_{\nu;r=1}^{(B)}(0)\right\},
+    A_{\nu;r;T}(\omega)=\int_{-\infty}^{\infty}dt\,e^{i\omega t}C_{\nu;r;T}(t),
+    :label: bath_spectral_density_1
+
+where :math:`C_{\nu;r;T}(t)` is the bath correlation function of the noise
+coupled to the :math:`\nu`-component of the spin at site :math:`r` and 
+temperature :math:`T`:
+
+.. math ::
+    C_{\nu;r;T}(t)=\text{Tr}^{(B)}\left\{ \hat{\rho}^{(i,B)}
+    \hat{Q}_{\nu;r}^{(B)}(t) \hat{Q}_{\nu;r}^{(B)}(0)\right\},
     :label: bath_bath_correlation_function
 
+with :math:`\hat{Q}_{\nu;r}^{(B)}(t)` being the rescaled reservoir force
+operator in the Heisenberg picture:
+
 .. math ::
-    \hat{\mathcal{Q}}_{\nu;r}^{(B)}(t)=e^{i\hat{H}^{(B)}t}
-    \hat{\mathcal{Q}}_{\nu;r}e^{-i\hat{H}^{(B)}t},
+    \hat{Q}_{\nu;r}^{(B)}(t)=e^{i\hat{H}^{(B)}t}
+    \hat{Q}_{\nu;r}e^{-i\hat{H}^{(B)}t},
     :label: bath_Q_heisenberg_picture
 
 :math:`\mathrm{Tr}^{(B)}\left\{\cdots\right\}` is the partial trace with
@@ -102,20 +113,15 @@ with :math:`\beta=1/(k_B T)`, and :math:`k_B` being the Boltzmann constant.
 Because the system is coupled to its environment, the dynamics of the system not
 only depend on its current state, but also its history. The degree to which the
 dynamics depend on the history of the system can be characterized by a quantity
-known as the bath correlation time, or “memory”. Informally, one may define the 
-system's memory :math:`\tau` as the time beyond which both the :math:`y`- and 
-the :math:`z`-components of the bath correlation function 
-[Eq. :eq:`bath_bath_correlation_function`] are negligibly small:
-
-.. math ::
-    \left|C_{\nu; T}\right| \ll 1.
-    :label: bath_defining_memory
-
-In ``sbc``, the user specifies the system's memory: if chosen too small, the
-simulation will not be accurate.
+known as the bath correlation time, or “memory”. The dynamics at the present
+time depend on events ranging further back in time as the system's memory
+increases. In ``sbc``, the user specifies the system's memory: if chosen too 
+small, the simulation will not be accurate.
 
 This module contains classes to specify all the necessary model components of 
-the bath, namely the :math:`A_{\nu;T}(\omega)` and the memory :math:`\tau`.
+the bath: namely the system-bath coupling energy scales 
+:math:`\mathcal{E}_{\nu;r}^{(\lambda)}(t)`, the spectral densities
+:math:`A_{\nu;r;T}(\omega)`, and the system's memory :math:`\tau`.
 """
 
 
@@ -137,6 +143,11 @@ import numpy as np
 
 
 
+# Import class representing time-dependent scalar model parameters.
+from sbc.scalar import Scalar
+
+
+
 ############################
 ## Authorship information ##
 ############################
@@ -155,34 +166,229 @@ __status__ = "Non-Production"
 ##############################################
 
 # List of public objects in objects.
-__all__ = ["SpectralDensityCmpnt",
+__all__ = ["SpectralDensity",
+           "SpectralDensity0T",
+           "SpectralDensityCmpnt",
            "SpectralDensityCmpnt0T",
-           "SpectralDensitySubcmpnt",
-           "SpectralDensitySubcmpnt0T",
            "Model"]
 
 
 
-class SpectralDensityCmpnt():
-    r"""The finite-temperature spectral density of some component of the noise.
+class SpectralDensity():
+    r"""A finite-temperature spectral density of noise.
 
     For background information on spectral densities, see the documentation for
     the module :mod:`sbc.bath`. 
 
-    This class represents the spectral density of some component of the noise 
-    [e.g. the :math:`y`-component] at a given temperature :math:`T`. This 
-    quantity, which we denote by :math:`A_{\nu;T}(\omega)` with 
-    :math:`\nu\in\{y, z\}`, was introduced in 
-    Eq. :eq:`bath_spectral_density_cmpnt_1` in the documentation for the module 
-    :mod:`sbc.bath`.
+    This class represents a spectral density of noise at temperature :math:`T`,
+    where the noise is coupled to the :math:`\nu`-component of the spin at site 
+    :math:`r`, with :math:`\nu\in\{y,z\}`. We denote this spectral density of 
+    noise by :math:`A_{\nu;r;T}(\omega)`. 
 
     In our detailed exposition on our QUAPI+TN approach found :manual:`here <>`,
-    we show that :math:`A_{\nu;T}(\omega)` can be expressed as
+    we show that :math:`A_{\nu;r;T}(\omega)` can be expressed as
 
     .. math ::
-        A_{\nu;T}(\omega)=\text{sign}(\omega)
-        \frac{A_{\nu;T=0}\left(\left|\omega\right|\right)}{1-e^{-\beta\omega}},
-        :label: bath_spectral_density_cmpnt_expr
+        A_{\nu;r;T}(\omega)=\text{sign}(\omega)
+        \frac{A_{\nu;r;T=0}\left(\left|\omega\right|\right)}
+        {1-e^{-\beta\omega}},
+        :label: bath_spectral_density_expr
+
+    where
+
+    .. math ::
+        \text{sign}\left(\omega\right)=\begin{cases}
+        1 & \text{if }\omega>0,\\
+        -1 & \text{if }\omega<0,
+        \end{cases}
+        :label: bath_spectral_density_sign_function
+
+    :math:`A_{\nu;r;T=0}(\omega)` is the zero-temperature limit of
+    :math:`A_{\nu;r;T}(\omega)`, and :math:`\beta=1/(k_B T)` with :math:`k_B` 
+    being the Boltzmann constant. The quantity :math:`A_{\nu;r;T=0}(\omega)` is
+    represented by the :class:`sbc.bath.SpectralDensity0T` class. See
+    the documentation for the aforementioned class for more details on
+    :math:`A_{\nu;r;T=0}(\omega)`.
+
+    In many applications of interest, :math:`A_{\nu;r;T=0}(\omega)` will 
+    comprise of multiple components:
+
+    .. math ::
+        A_{\nu;r;T=0}(\omega)=\sum_{\varsigma}A_{\nu;r;T=0;\varsigma}(\omega),
+        :label: bath_spectral_density_0T_breakdown_1
+
+    where :math:`A_{\nu;r;T=0;\varsigma}(\omega)` is the 
+    :math:`\varsigma^{\mathrm{th}}` component of :math:`A_{\nu;r;T=0}(\omega)`.
+    As an example, :math:`A_{\nu;r;T=0}(\omega)` may be strongly peaked at 
+    multiple frequencies, in which case it naturally decomposes into multiple 
+    components. If :math:`A_{\nu;r;T=0}(\omega)` naturally decomposes into 
+    multiple components, it is best to treat each component separately in 
+    our QUAPI+TN approach rather than treat :math:`A_{\nu;r;T=0}(\omega)` as a 
+    single entity. For further discussion on this matter, see our detailed 
+    exposition of our QUAPI+TN approach found :manual:`here <>`. 
+
+    From Eqs. :eq:`bath_spectral_density_expr` and 
+    :eq:`bath_spectral_density_0T_breakdown_1`, we can write
+
+    .. math ::
+        A_{\nu;r;T}(\omega)=\sum_{\varsigma}A_{\nu;r;T;\varsigma}(\omega),
+        :label: bath_spectral_density_breakdown
+
+    where
+
+    .. math ::
+        A_{\nu;r;T;\varsigma}(\omega)=\text{sign}(\omega)
+        \frac{A_{\nu;r;T=0;\varsigma}\left(\left|\omega\right|\right)}
+        {1-e^{-\beta\omega}}.
+        :label: bath_spectral_density_cmpnt_expr_1
+
+    We refer to the :math:`A_{\nu;r;T;\varsigma}(\omega)` as the components of
+    :math:`A_{\nu;r;T}(\omega)`. The quantity 
+    :math:`A_{\nu;T;\varsigma}(\omega)` is represented by the 
+    :class:`sbc.bath.SpectralDensityCmpnt` class.
+
+    Parameters
+    ----------
+    limit_0T : :class:`sbc.bath.SpectralDensity0T`
+        The zero-temperature limit of the spectral density of noise of interest,
+        :math:`A_{\nu;r;T=0}(\omega)`.
+    beta : `float`
+        The inverse temperature, :math:`\beta=1/(k_B T)`, with :math:`k_B` 
+        being the Boltzmann constant and :math:`T` being the temperature.
+
+    Attributes
+    ----------
+    cmpnts : `array_like` (:class:`sbc.bath.SpectralDensityCmpnt`, ndim=1), read-only
+        The components of :math:`A_{\nu;r;T}(\omega)`, i.e. the
+        :math:`A_{\nu;r;T;\varsigma}(\omega)`.
+    """
+    def __init__(self, limit_0T, beta):
+        self.cmpnts = []
+        for cmpnt_0T in limit_0T.cmpnts:
+            self.cmpnts += [SpectralDensityCmpnt(cmpnt_0T, beta)]
+
+        return None
+
+
+
+    def eval(self, omega):
+        r"""Evaluate :math:`A_{\nu;r;T}(\omega)` at frequency ``omega``.
+
+        Parameters
+        ----------
+        omega : `float`
+            Frequency.
+
+        Returns
+        -------
+        result : `float`
+            The value of :math:`A_{\nu;r;T}(\omega)` at frequency ``omega``.
+        """
+        result = 0.0
+        for cmpnt in self.cmpnts:
+            result += cmpnt.eval(omega)
+
+        return result
+
+
+
+class SpectralDensity0T():
+    r"""The zero-temperature limit of some spectral density of noise.
+
+    For background information on spectral densities, see the documentation for
+    the module :mod:`sbc.bath`, and the class 
+    :class:`sbc.bath.SpectralDensity`. 
+
+    This class represents the zero-temperature limit of some spectral density of
+    noise, where the noise is coupled to the :math:`\nu`-component of the spin 
+    at site :math:`r`, with :math:`\nu\in\{y,z\}`. We denote the 
+    zero-temperature limit of this spectral density of noise by 
+    :math:`A_{\nu;r;T=0}(\omega)`. 
+
+    In many applications of interest, :math:`A_{\nu;r;T=0}(\omega)` will 
+    comprise of multiple components:
+
+    .. math ::
+        A_{\nu;r;T=0}(\omega)=\sum_{\varsigma}A_{\nu;r;T=0;\varsigma}(\omega),
+        :label: bath_spectral_density_0T_breakdown_2
+
+    where :math:`A_{\nu;r;T=0;\varsigma}(\omega)` is the 
+    :math:`\varsigma^{\mathrm{th}}` component. As an example, 
+    :math:`A_{\nu;T=0}(\omega)` may be strongly peaked at multiple frequencies, 
+    in which case it naturally decomposes into multiple components. If
+    :math:`A_{\nu;r;T=0}(\omega)` naturally decomposes into multiple 
+    components, it is best to treat each component separately in our 
+    QUAPI+TN approach rather than treat :math:`A_{\nu;r;T=0}(\omega)` as a 
+    single entity. For further discussion on this matter, see our detailed 
+    exposition of our QUAPI+TN approach found :manual:`here <>`. 
+
+    The quantity :math:`A_{\nu;r;T=0;\varsigma}(\omega)` is represented by the
+    :class:`sbc.bath.SpectralDensityCmpnt0T` class. See the documentation for
+    the aforementioned class for more details on 
+    :math:`A_{\nu;r;T=0;\varsigma}(\omega)`.
+
+    Parameters
+    ----------
+    cmpnts : `array_like` (:class:`sbc.bath.SpectralDensityCmpnt0T`, ndim=1)
+        The components of :math:`A_{\nu;r;T=0}(\omega)`, i.e. the
+        :math:`A_{\nu;r;T=0;\varsigma}(\omega)`.
+
+    Attributes
+    ----------
+    cmpnts : `array_like` (:class:`sbc.bath.SpectralDensityCmpnt0T`, ndim=1), read-only
+        The components of :math:`A_{\nu;r;T=0}(\omega)`, i.e. the
+        :math:`A_{\nu;r;T=0;\varsigma}(\omega)`.
+    """
+    def __init__(self, cmpnts):
+        self.cmpnts = cmpnts
+
+        return None
+
+
+
+    def eval(self, omega):
+        r"""Evaluate :math:`A_{\nu;r;T=0}(\omega)` at frequency ``omega``.
+
+        Parameters
+        ----------
+        omega : `float`
+            Frequency.
+
+        Returns
+        -------
+        result : `float`
+            The value of :math:`A_{\nu;r;T=0}(\omega)` at frequency ``omega``.
+        """
+        result = 0.0
+        for cmpnt in self.cmpnts:
+            result += cmpnt.eval(omega)
+
+        return result
+
+
+
+class SpectralDensityCmpnt():
+    r"""A component of some finite-temperature spectral density of noise.
+
+    For background information on spectral densities, see the documentation for
+    the module :mod:`sbc.bath`, and the class 
+    :class:`sbc.bath.SpectralDensity`. The latter introduces the concept
+    of breaking down a given finite-temperature spectral density of noise
+    into components. We denote these components by 
+    :math:`A_{\nu;r;T;\varsigma}(\omega)`, with :math:`\varsigma` indicating the
+    component.
+    
+    This class represents a single :math:`A_{\nu;r;T;\varsigma}(\omega)`.
+
+    As briefly discussed in the documentation for the class 
+    :class:`sbc.bath.SpectralDensity`, :math:`A_{\nu;r;T;\varsigma}(\omega)`
+    can be expressed as
+
+    .. math ::
+        A_{\nu;r;T;\varsigma}(\omega)=\text{sign}(\omega)
+        \frac{A_{\nu;r;T=0;\varsigma}\left(\left|\omega\right|\right)}
+        {1-e^{-\beta\omega}},
+        :label: bath_spectral_density_cmpnt_expr_2
 
     where
 
@@ -193,223 +399,28 @@ class SpectralDensityCmpnt():
         \end{cases}
         :label: bath_spectral_density_cmpnt_sign_function
 
-    :math:`A_{\nu;T=0}(\omega)` is the zero-temperature limit of
-    :math:`A_{\nu;T}(\omega)`, and :math:`\beta=1/(k_B T)` with :math:`k_B` 
-    being the Boltzmann constant. The quantity :math:`A_{\nu;T=0}(\omega)` is
-    represented by the :class:`sbc.bath.SpectralDensityCmpnt0T` class. See
-    the documentation for the aforementioned class for more details on
-    :math:`A_{\nu;T=0}(\omega)`.
+    :math:`A_{\nu;r;T=0;\varsigma}(\omega)` is the zero-temperature limit of
+    :math:`A_{\nu;r;T;\varsigma}(\omega)`, and :math:`\beta=1/(k_B T)` with 
+    :math:`k_B` being the Boltzmann constant and :math:`T` being the 
+    temperature. 
 
-    In many applications of interest, :math:`A_{\nu;T=0}(\omega)` will comprise
-    of multiple subcomponents:
-
-    .. math ::
-        A_{\nu;T=0}(\omega)=\sum_{\varsigma}A_{\nu;T=0;\varsigma}(\omega),
-        :label: bath_spectral_density_cmpnt_0T_breakdown_1
-
-    where :math:`A_{\nu;T=0;\varsigma}(\omega)` is the 
-    :math:`\varsigma^{\mathrm{th}}` subcomponent of :math:`A_{\nu;T=0}(\omega)`.
-    As an example, :math:`A_{z;T=0}(\omega)` may be strongly peaked at multiple 
-    frequencies, in which case it naturally decomposes into multiple 
-    subcomponents. If :math:`A_{\nu;T=0}(\omega)` naturally decomposes into 
-    multiple subcomponents, it is best to treat each subcomponent separately in 
-    our QUAPI+TN approach rather than treat :math:`A_{\nu;T=0}(\omega)` as a 
-    single entity. For further discussion on this matter, see our detailed 
-    exposition of our QUAPI+TN approach found :manual:`here <>`. 
-
-    From Eqs. :eq:`bath_spectral_density_cmpnt_expr` and 
-    :eq:`bath_spectral_density_cmpnt_0T_breakdown_1`, we can write
-
-    .. math ::
-        A_{\nu;T}(\omega)=\sum_{\varsigma}A_{\nu;T;\varsigma}(\omega),
-        :label: bath_spectral_density_cmpnt_breakdown
-
-    where
-
-    .. math ::
-        A_{\nu;T;\varsigma}(\omega)=\text{sign}(\omega)
-        \frac{A_{\nu;T=0;\varsigma}\left(\left|\omega\right|\right)}
-        {1-e^{-\beta\omega}}.
-        :label: bath_spectral_density_subcmpnt_expr_1
-
-    We refer to the :math:`A_{\nu;T;\varsigma}(\omega)` as the subcomponents of
-    :math:`A_{\nu;T}(\omega)`. The quantity :math:`A_{\nu;T;\varsigma}(\omega)` 
-    is represented by the :class:`sbc.bath.SpectralDensitySubcmpnt` class.
+    The quantity :math:`A_{\nu;r;T=0;\varsigma}(\omega)` is
+    represented by the :class:`sbc.bath.SpectralDensityCmpnt0T` class.
 
     Parameters
     ----------
     limit_0T : :class:`sbc.bath.SpectralDensityCmpnt0T`
-        The zero-temperature limit of the spectral density of the component of
-        the noise of interest, :math:`A_{\nu;T=0}(\omega)`.
+        The zero-temperature limit of :math:`A_{\nu;r;T;\varsigma}(\omega)`, 
+         i.e. :math:`A_{\nu;r;T=0;\varsigma}(\omega)`.
     beta : `float`
         The inverse temperature, :math:`\beta=1/(k_B T)`, with :math:`k_B` 
         being the Boltzmann constant and :math:`T` being the temperature.
 
     Attributes
     ----------
-    subcmpnts : `array_like` (:class:`sbc.bath.SpectralDensitySubcmpnt`, ndim=1), read-only
-        The subcomponents of :math:`A_{\nu;T}(\omega)`, i.e. the
-        :math:`A_{\nu;T;\varsigma}(\omega)`.
-    """
-    def __init__(self, limit_0T, beta):
-        self.subcmpnts = []
-        for subcmpnt_0T in limit_0T.subcmpnts:
-            self.subcmpnts += [SpectralDensitySubcmpnt(subcmpnt_0T, beta)]
-
-        return None
-
-
-
-    def eval(self, omega):
-        r"""Evaluate :math:`A_{\nu;T}(\omega)` at frequency ``omega``.
-
-        Parameters
-        ----------
-        omega : `float`
-            Frequency.
-
-        Returns
-        -------
-        result : `float`
-            The value of :math:`A_{\nu;T}(\omega)` at frequency ``omega``.
-        """
-        result = 0.0
-        for subcmpnt in self.subcmpnts:
-            result += subcmpnt.eval(omega)
-
-        return result
-
-
-
-class SpectralDensityCmpnt0T():
-    r"""The zero-temperature spectral density of some component of the noise.
-
-    For background information on spectral densities, see the documentation for
-    the module :mod:`sbc.bath`, and the class 
-    :class:`sbc.bath.SpectralDensityCmpnt`. 
-
-    This class represents the spectral density of some component of the noise 
-    [e.g. the :math:`y`-component] at zero-temperature. This quantity, which we 
-    denote by :math:`A_{\nu;T=0}(\omega)` with :math:`\nu\in\{y, z\}`, was 
-    introduced in Eq. :eq:`bath_spectral_density_cmpnt_expr` in the 
-    documentation for the class :class:`sbc.bath.SpectralDensityCmpnt`.
-
-    In many applications of interest, :math:`A_{\nu;T=0}(\omega)` will comprise
-    of multiple subcomponents:
-
-    .. math ::
-        A_{\nu;T=0}(\omega)=\sum_{\varsigma}A_{\nu;T=0;\varsigma}(\omega),
-        :label: bath_spectral_density_cmpnt_0T_breakdown_2
-
-    where :math:`A_{\nu;T=0;\varsigma}(\omega)` is the 
-    :math:`\varsigma^{\mathrm{th}}` subcomponent. As an example, 
-    :math:`A_{z;T=0}(\omega)` may be strongly peaked at multiple frequencies, in
-    which case it naturally decomposes into multiple subcomponents. If
-    :math:`A_{\nu;T=0}(\omega)` naturally decomposes into multiple 
-    subcomponents, it is best to treat each subcomponent separately in our 
-    QUAPI+TN approach rather than treat :math:`A_{\nu;T=0}(\omega)` as a single 
-    entity. For further discussion on this matter, see our detailed exposition 
-    of our QUAPI+TN approach found :manual:`here <>`. 
-
-    The quantity :math:`A_{\nu;T=0;\varsigma}(\omega)` is represented by the
-    :class:`sbc.bath.SpectralDensitySubcmpnt0T` class. See the documentation for
-    the aforementioned class for more details on 
-    :math:`A_{\nu;T=0;\varsigma}(\omega)`.
-
-    Parameters
-    ----------
-    subcmpnts : `array_like` (:class:`sbc.bath.SpectralDensitySubcmpnt0T`, ndim=1)
-        The subcomponents of :math:`A_{\nu;T=0}(\omega)`, i.e. the
-        :math:`A_{\nu;T=0;\varsigma}(\omega)`.
-
-    Attributes
-    ----------
-    subcmpnts : `array_like` (:class:`sbc.bath.SpectralDensitySubcmpnt0T`, ndim=1), read-only
-        The subcomponents of :math:`A_{\nu;T=0}(\omega)`, i.e. the
-        :math:`A_{\nu;T=0;\varsigma}(\omega)`.
-    """
-    def __init__(self, subcmpnts):
-        self.subcmpnts = subcmpnts
-
-        return None
-
-
-
-    def eval(self, omega):
-        r"""Evaluate :math:`A_{\nu;T=0}(\omega)` at frequency ``omega``.
-
-        Parameters
-        ----------
-        omega : `float`
-            Frequency.
-
-        Returns
-        -------
-        result : `float`
-            The value of :math:`A_{\nu;T=0}(\omega)` at frequency ``omega``.
-        """
-        result = 0.0
-        for subcmpnt in self.subcmpnts:
-            result += subcmpnt.eval(omega)
-
-        return result
-
-
-
-class SpectralDensitySubcmpnt():
-    r"""A subcomponent of some finite-temperature spectral density of the noise.
-
-    For background information on spectral densities, see the documentation for
-    the module :mod:`sbc.bath`, and the class 
-    :class:`sbc.bath.SpectralDensityCmpnt`. The latter introduces the concept
-    of breaking down a given finite-temperature spectral density of some 
-    component of the noise [e.g. the :math:`y`-component] into subcomponents. We
-    denote these subcomponents by :math:`A_{\nu;T;\varsigma}(\omega)`, with
-    :math:`\nu\in\{y, z\}` and :math:`\varsigma` indicating the subcomponent.
-    
-    This class represents a single :math:`A_{\nu;T;\varsigma}(\omega)`.
-
-    As briefly discussed in the documentation for the class 
-    :class:`sbc.bath.SpectralDensityCmpnt`, :math:`A_{\nu;T;\varsigma}(\omega)`
-    can be expressed as
-
-    .. math ::
-        A_{\nu;T;\varsigma}(\omega)=\text{sign}(\omega)
-        \frac{A_{\nu;T=0;\varsigma}\left(\left|\omega\right|\right)}
-        {1-e^{-\beta\omega}},
-        :label: bath_spectral_density_subcmpt_expr_2
-
-    where
-
-    .. math ::
-        \text{sign}\left(\omega\right)=\begin{cases}
-        1 & \text{if }\omega>0,\\
-        -1 & \text{if }\omega<0,
-        \end{cases}
-        :label: bath_spectral_density_subcmpnt_sign_function
-
-    :math:`A_{\nu;T=0;\varsigma}(\omega)` is the zero-temperature limit of
-    :math:`A_{\nu;T;\varsigma}(\omega)`, and :math:`\beta=1/(k_B T)` with 
-    :math:`k_B` being the Boltzmann constant and :math:`T` being the 
-    temperature. 
-
-    The quantity :math:`A_{\nu;T=0;\varsigma}(\omega)` is
-    represented by the :class:`sbc.bath.SpectralDensitySubcmpnt0T` class.
-
-    Parameters
-    ----------
-    limit_0T : :class:`sbc.bath.SpectralDensitySubcmpnt0T`
-        The zero-temperature limit of :math:`A_{\nu;T;\varsigma}(\omega)`, i.e.
-        :math:`A_{\nu;T=0;\varsigma}(\omega)`.
-    beta : `float`
-        The inverse temperature, :math:`\beta=1/(k_B T)`, with :math:`k_B` 
-        being the Boltzmann constant and :math:`T` being the temperature.
-
-    Attributes
-    ----------
-    limit_0T : :class:`sbc.bath.SpectralDensitySubcmpnt0T`, read-only
-        The zero-temperature limit of :math:`A_{\nu;T;\varsigma}(\omega)`, i.e.
-        :math:`A_{\nu;T=0;\varsigma}(\omega)`.
+    limit_0T : :class:`sbc.bath.SpectralDensityCmpnt0T`, read-only
+        The zero-temperature limit of :math:`A_{\nu;r;T;\varsigma}(\omega)`, 
+        i.e. :math:`A_{\nu;r;T=0;\varsigma}(\omega)`.
     beta : `float`, read-only
         The inverse temperature, :math:`\beta=1/(k_B T)`, with :math:`k_B` 
         being the Boltzmann constant and :math:`T` being the temperature.
@@ -423,7 +434,8 @@ class SpectralDensitySubcmpnt():
 
 
     def eval(self, omega):
-        r"""Evaluate :math:`A_{\nu;T;\varsigma}(\omega)` at frequency ``omega``.
+        r"""Evaluate :math:`A_{\nu;r;T;\varsigma}(\omega)` at frequency 
+        ``omega``.
 
         Parameters
         ----------
@@ -433,7 +445,7 @@ class SpectralDensitySubcmpnt():
         Returns
         -------
         result : `float`
-            The value of :math:`A_{\nu;T;\varsigma}(\omega)` at frequency 
+            The value of :math:`A_{\nu;r;T;\varsigma}(\omega)` at frequency 
             ``omega``.
         """
         if np.abs(omega) > self.limit_0T.hard_cutoff_freq:
@@ -470,58 +482,59 @@ class SpectralDensitySubcmpnt():
 
 
 
-class SpectralDensitySubcmpnt0T():
-    r"""A subcomponent of some zero-temperature spectral density of the noise.
+class SpectralDensityCmpnt0T():
+    r"""A component of the zero-temperature limit of some spectral density of 
+    the noise.
 
     For background information on spectral densities, see the documentation for
     the module :mod:`sbc.bath`, and the class 
-    :class:`sbc.bath.SpectralDensityCmpnt0T`. The latter discusses the concept
-    of breaking down a given zero-temperature spectral density of some component
-    of the noise [e.g. the :math:`y`-component] into subcomponents. We denote
-    these subcomponents by :math:`A_{\nu;T=0;\varsigma}(\omega)`, with
-    :math:`\nu\in\{y, z\}` and :math:`\varsigma` indicating the subcomponent.
+    :class:`sbc.bath.SpectralDensity0T`. The latter discusses the concept
+    of breaking down the zero-temperature limit of a given spectral density of
+    noise into components. We denote these components by 
+    :math:`A_{\nu;r;T=0;\varsigma}(\omega)`, with :math:`\varsigma` indicating 
+    the component.
     
-    This class represents a single :math:`A_{\nu;T=0;\varsigma}(\omega)`.
+    This class represents a single :math:`A_{\nu;r;T=0;\varsigma}(\omega)`.
 
-    In the continuum limit, :math:`A_{\nu;T=0;\varsigma}(\omega)` becomes a 
+    In the continuum limit, :math:`A_{\nu;r;T=0;\varsigma}(\omega)` becomes a 
     continuous function of :math:`\omega` satisfying:
 
     .. math ::
-        A_{\nu;T=0;\varsigma}(\omega) \ge 0,
-        :label: bath_spectral_density_subcmpnt_0T_properties_1
+        A_{\nu;r;T=0;\varsigma}(\omega) \ge 0,
+        :label: bath_spectral_density_cmpnt_0T_properties_1
 
     and
 
     .. math ::
-        A_{\nu;T=0;\varsigma}(\omega \le 0) = 0,
-        :label: bath_spectral_density_subcmpnt_0T_properties_2
+        A_{\nu;r;T=0;\varsigma}(\omega \le 0) = 0,
+        :label: bath_spectral_density_cmpnt_0T_properties_2
 
     In order for the open-system dynamics to be "well-behaved", 
-    :math:`A_{\nu;T=0;\varsigma}(\omega)` must satisfy:
+    :math:`A_{\nu;r;T=0;\varsigma}(\omega)` must satisfy:
 
     .. math ::
         \left|\lim_{\omega \to 0} 
-        \frac{A_{\nu;T=0;\varsigma}}{\omega}\right| < \infty.
-        :label: bath_spectral_density_subcmpnt_0T_requirement
+        \frac{A_{\nu;r;T=0;\varsigma}}{\omega}\right| < \infty.
+        :label: bath_spectral_density_cmpnt_0T_requirement
 
     In our QUAPI+TN approach, frequency integrals are performed with integrands
-    containing the :math:`A_{\nu;T=0;\varsigma}(\omega)`. Each integrand
+    containing the :math:`A_{\nu;r;T=0;\varsigma}(\omega)`. Each integrand
     contains a removable singularity at :math:`\omega=0`. In order to handle
     these integrands properly in our approach, we require the limit of the
-    derivative of each :math:`A_{\nu;T=0;\varsigma}(\omega)` as :math:`\omega`
+    derivative of each :math:`A_{\nu;r;T=0;\varsigma}(\omega)` as :math:`\omega`
     approaches zero from the right.
 
     Parameters
     ----------
     func_form : `func` (`float`, `**kwargs`)
-        The functional form of :math:`A_{\nu;T=0;\varsigma}(\omega)`, where the
-        first function argument of ``func_form`` is the frequency
+        The functional form of :math:`A_{\nu;r;T=0;\varsigma}(\omega)`, where 
+        the first function argument of ``func_form`` is the frequency
         :math:`\omega`. ``func_form`` needs to be well-defined for non-negative 
         frequencies and must satisfy 
-        Eqs. :eq:`bath_spectral_density_subcmpnt_0T_properties_1`  and
-        :eq:`bath_spectral_density_subcmpnt_0T_requirement`. Note that 
+        Eqs. :eq:`bath_spectral_density_cmpnt_0T_properties_1`  and
+        :eq:`bath_spectral_density_cmpnt_0T_requirement`. Note that 
         ``func_form`` is effectively ignored for negative frequencies as
-        :math:`A_{\nu;T=0;\varsigma}(\omega)` is assumed to be zero for those
+        :math:`A_{\nu;r;T=0;\varsigma}(\omega)` is assumed to be zero for those
         frequencies.
     func_kwargs : `dict`
         A dictionary specifying specific values of the keyword arguments of
@@ -529,35 +542,35 @@ class SpectralDensitySubcmpnt0T():
         dictionary should be passed.
     hard_cutoff_freq : `float`
         A hard cutoff frequency. For frequencies ``omega`` satisfying
-        ``omega >= hard_cutoff_freq``, :math:`A_{\nu;T=0;\varsigma}(\omega)`
+        ``omega >= hard_cutoff_freq``, :math:`A_{\nu;r;T=0;\varsigma}(\omega)`
         evaluates to zero. ``hard_cutoff_freq`` should be chosen such that for
         any frequencies higher than ``hard_cutoff_freq``, the function
         ``func_form`` evaluates to a negligibly small number. 
         ``hard_cutoff_freq`` is expected to be positive.
     zero_pt_derivative : `float` | `None`, optional
-        The limit of the derivative of :math:`A_{\nu;T=0;\varsigma}(\omega)` as
-        :math:`\omega` approaches zero from the right. If ``zero_pt_derivative``
-        is set to `None` [i.e. the default value], then it will be estimated
-        automatically by ``sbc``.
+        The limit of the derivative of :math:`A_{\nu;r;T=0;\varsigma}(\omega)` 
+        as :math:`\omega` approaches zero from the right. If 
+        ``zero_pt_derivative`` is set to `None` [i.e. the default value], then 
+        it will be estimated automatically by ``sbc``.
 
     Attributes
     ----------
     func_form : `func` (`float`, `**kwargs`), read-only
-        The functional form of :math:`A_{\nu;T=0;\varsigma}(\omega)`, where the
-        first function argument of ``func_form`` is the frequency
+        The functional form of :math:`A_{\nu;r;T=0;\varsigma}(\omega)`, where 
+        the first function argument of ``func_form`` is the frequency
         :math:`\omega`. Note that ``func_form`` is effectively ignored for 
-        negative frequencies as :math:`A_{\nu;T=0;\varsigma}(\omega)` is 
+        negative frequencies as :math:`A_{\nu;r;T=0;\varsigma}(\omega)` is 
         assumed to be zero for those frequencies.
     func_kwargs : `dict`, read-only
         A dictionary specifying specific values of the keyword arguments of
         ``func_form``.
     hard_cutoff_freq : `float`, read-only
         A hard cutoff frequency. For frequencies ``omega`` satisfying
-        ``omega >= hard_cutoff_freq``, :math:`A_{\nu;T=0;\varsigma}(\omega)`
+        ``omega >= hard_cutoff_freq``, :math:`A_{\nu;r;T=0;\varsigma}(\omega)`
         evaluates to zero.
     zero_pt_derivative : `float` | `None`, read-only
-        The limit of the derivative of :math:`A_{\nu;T=0;\varsigma}(\omega)` as
-        :math:`\omega` approaches zero from the right. 
+        The limit of the derivative of :math:`A_{\nu;r;T=0;\varsigma}(\omega)` 
+        as :math:`\omega` approaches zero from the right. 
     """
     def __init__(self,
                  func_form,
@@ -573,7 +586,7 @@ class SpectralDensitySubcmpnt0T():
                             "suppose to specify the keyword arguments of the "
                             "given function `func_form`, used to construct an "
                             "instance of the "
-                            "`sbc.bath.SpectralDensitySubcmpnt0T` class, "
+                            "`sbc.bath.SpectralDensityCmpnt0T` class, "
                             "is not compatible with `func_form`.")
         
         self.func_form = func_form
@@ -589,7 +602,7 @@ class SpectralDensitySubcmpnt0T():
 
 
     def eval(self, omega):
-        r"""Evaluate :math:`A_{\nu;T=0;\varsigma}(\omega)` at frequency 
+        r"""Evaluate :math:`A_{\nu;r;T=0;\varsigma}(\omega)` at frequency 
         ``omega``.
 
         Parameters
@@ -600,7 +613,7 @@ class SpectralDensitySubcmpnt0T():
         Returns
         -------
         result : `float`
-            The value of :math:`A_{\nu;T=0;\varsigma}(\omega)` at frequency 
+            The value of :math:`A_{\nu;r;T=0;\varsigma}(\omega)` at frequency 
             ``omega``.
         """
         result = self._eval(omega)
@@ -618,94 +631,187 @@ class SpectralDensitySubcmpnt0T():
 
 
 
+# Define a trivial spectral density which always evaluates to zero.
+_trivial_spectral_density_cmpnt_0T = \
+    SpectralDensityCmpnt0T(func_form=lambda omega: 0.0,
+                           func_kwargs={},
+                           hard_cutoff_freq=1.0e-10,
+                           zero_pt_derivative=0.0)
+_trivial_spectral_density_0T = \
+    SpectralDensity0T(cmpnts=[_trivial_spectral_density_cmpnt_0T])
+_trivial_spectral_density = \
+    SpectralDensity(limit_0T=_trivial_spectral_density_0T, beta=1.0)
+
+
+
 class Model():
     r"""The bath's model components.
 
-    For background information on spectral densities and system memory, see the 
-    documentation for the module :mod:`sbc.bath`, and the class 
-    :class:`sbc.bath.SpectralDensityCmpnt`. 
+    For background information on system-bath coupling energy scales,
+    spectral densities, and system memory, see the documentation for the module
+    :mod:`sbc.bath`, and the class :class:`sbc.bath.SpectralDensity`. 
 
     Parameters
     ----------
+    L : `int`
+        The number of spin sites.
     beta : `float`
         The inverse temperature, :math:`\beta=1/(k_B T)`, with :math:`k_B` 
         being the Boltzmann constant and :math:`T` being the temperature.
-    tau : `float`
+    memory : `float`
         The bath correlation time, also known as the system's memory 
-        :math:`\tau`. ``tau`` is expected to be non-negative.
-    spectral_density_y_cmpnt_0T : :class:`sbc.bath.SpectralDensityCmpnt0T` | `None`, optional
-        If not set to `None`, then ``spectral_density_y_cmpnt_0T`` is the 
-        zero-temperature limit of the spectral density of the 
-        :math:`y^{\mathrm{th}}` component of the noise, 
-        :math:`A_{y;T=0}(\omega)`. If set to `None`, 
-        ``spectral_density_y_cmpnt_0T`` indicates that the environment does not
-        couple to the :math:`y`-components of the system's spins.
-    spectral_density_z_cmpnt_0T : :class:`sbc.bath.SpectralDensityCmpnt0T` | `None`, optional
-        If not set to `None`, then ``spectral_density_z_cmpnt_0T`` is the 
-        zero-temperature limit of the spectral density of the 
-        :math:`z^{\mathrm{th}}` component of the noise, 
-        :math:`A_{z;T=0}(\omega)`. If set to `None`, 
-        ``spectral_density_z_cmpnt_0T`` indicates that the environment does not
-        couple to the :math:`z`-components of the system's spins.
+        :math:`\tau`. ``memory`` is expected to be non-negative.
+    y_coupling_energy_scales : `array_like` (`float` | :class:`sbc.scalar.Scalar`, shape=(``L``,)) | `None`, optional
+        The energy scales :math:`\mathcal{E}_{y;r}^{(\lambda)}(t)` 
+        [introduced in Eq. :eq:`bath_generalized_reservoir_force`] associated 
+        with the couplings between the environment and the :math:`y`-components 
+        of the system's spins. If ``y_coupling_energy_scales`` is an array, then
+        ``y_coupling_energy_scales[r]`` is the energy scale for site ``r``.
+        Note that the energy scales can be either time-dependent or independent.
+        All time-independent field energy scales are converted to trivial
+        instances of :class:`sbc.scalar.Scalar`. If ``y_coupling_energy_scales``
+        is set to `None` (i.e. the default value), then the environment is not
+        coupled to the :math:`y`-components of the system's spins.
+    z_coupling_energy_scales : `array_like` (`float` | :class:`sbc.scalar.Scalar`, shape=(``L``,)) | `None`, optional
+        The energy scales :math:`\mathcal{E}_{z;r}^{(\lambda)}(t)` 
+        [introduced in Eq. :eq:`bath_generalized_reservoir_force`] associated 
+        with the couplings between the environment and the :math:`z`-components 
+        of the system's spins. If ``z_coupling_energy_scales`` is an array, then
+        ``z_coupling_energy_scales[r]`` is the energy scale for site ``r``.
+        Note that the energy scales can be either time-dependent or independent.
+        All time-independent field energy scales are converted to trivial
+        instances of :class:`sbc.scalar.Scalar`. If ``z_coupling_energy_scales``
+        is set to `None` (i.e. the default value), then the environment is not
+        coupled to the :math:`z`-components of the system's spins.
+    y_spectral_densities_0T : `array_like` (0 | :class:`sbc.bath.SpectralDensity0T`, shape=(``L``,)) | `None`, optional
+        The zero-temperature limits of the spectral densities of noise coupled
+        to the :math:`y`-components of the system's spins. If 
+        ``y_spectral_densities_0T`` is an array, then
+        ``y_spectral_densities_0T[r]`` is the spectral density for site ``r``,
+        :math:`A_{y;r;T=0}(\omega)`. If ``y_spectral_densities_0T[r]`` is set to
+        ``0``, then it is converted into a trivial instance of 
+        :class:`sbc.bath.SpectralDensity0T` which always evaluates to zero, 
+        i.e. there is no coupling between the bath and the :math:`y`-component 
+        of the spin at site ``r`` in this case. If ``y_spectral_densities_0T`` 
+        is set to `None` (i.e. the default value), then the environment is not 
+        coupled to the :math:`y`-components of the system's spins.
+    z_spectral_densities_0T : `array_like` (0 | :class:`sbc.bath.SpectralDensity0T`, shape=(``L``,)) | `None`, optional
+        The zero-temperature limits of the spectral densities of noise coupled
+        to the :math:`z`-components of the system's spins. If 
+        ``z_spectral_densities_0T`` is an array, then
+        ``z_spectral_densities_0T[r]`` is the spectral density for site ``r``,
+        :math:`A_{z;r;T=0}(\omega)`. If ``z_spectral_densities_0T[r]`` is set to
+        ``0``, then it is converted into a trivial instance of 
+        :class:`sbc.bath.SpectralDensity0T` which always evaluates to zero, 
+        i.e. there is no coupling between the bath and the :math:`z`-component 
+        of the spin at site ``r`` in this case. If ``z_spectral_densities_0T`` 
+        is set to `None` (i.e. the default value), then the environment is not 
+        coupled to the :math:`z`-components of the system's spins.
 
     Attributes
     ----------
-    tau : `float`, read-only
+    L : `int`, read-only
+        The number of spin sites.
+    memory : `float`, read-only
         The bath correlation time, also known as the system's memory 
         :math:`\tau`.
-    spectral_density_y_cmpnt : :class:`sbc.bath.SpectralDensityCmpnt` | `None`, read-only
-        If not set to `None`, then ``spectral_density_y_cmpnt`` is the 
-        finite-temperature  spectral density of the :math:`y^{\mathrm{th}}` 
-        component of the noise, :math:`A_{y;T}(\omega)`. If set to `None`, 
-        ``spectral_density_y_cmpnt`` indicates that the environment does not
-        couple to the :math:`y`-components of the system's spins.
-    spectral_density_z_cmpnt : :class:`sbc.bath.SpectralDensityCmpnt` | `None`, read-only
-        If not set to `None`, then ``spectral_density_z_cmpnt`` is the 
-        finite-temperature  spectral density of the :math:`z^{\mathrm{th}}` 
-        component of the noise, :math:`A_{z;T}(\omega)`. If set to `None`, 
-        ``spectral_density_y_cmpnt`` indicates that the environment does not
-        couple to the :math:`z`-components of the system's spins.
+    y_coupling_energy_scales : `array_like` (:class:`sbc.scalar.Scalar`, shape=(``L``,)) | `None`, read-only
+        The energy scales :math:`\mathcal{E}_{y;r}^{(\lambda)}(t)` 
+        [introduced in Eq. :eq:`bath_generalized_reservoir_force`] associated 
+        with the couplings between the environment and the :math:`y`-components 
+        of the system's spins. If ``y_coupling_energy_scales`` is an array, then
+        ``y_coupling_energy_scales[r]`` is the energy scale for site ``r``.
+        If ``y_coupling_energy_scales`` is set to `None`, then the environment 
+        is not coupled to the :math:`y`-components of the system's spins.
+    z_coupling_energy_scales : `array_like` (:class:`sbc.scalar.Scalar`, shape=(``L``,)) | `None`, read-only
+        The energy scales :math:`\mathcal{E}_{z;r}^{(\lambda)}(t)` 
+        [introduced in Eq. :eq:`bath_generalized_reservoir_force`] associated 
+        with the couplings between the environment and the :math:`z`-components 
+        of the system's spins. If ``z_coupling_energy_scales`` is an array, then
+        ``z_coupling_energy_scales[r]`` is the energy scale for site ``r``.
+        If ``z_coupling_energy_scales`` is set to `None`, then the environment 
+        is not coupled to the :math:`z`-components of the system's spins.
+    y_spectral_densities : `array_like` (:class:`sbc.bath.SpectralDensity`, shape=(``L``,)) | `None`, read-only
+        The spectral densities of noise coupled to the :math:`y`-components of 
+        the system's spins at temperature :math:`T`. If ``y_spectral_densities``
+        is an array, then ``y_spectral_densities[r]`` is the spectral density 
+        for site ``r``, :math:`A_{y;r;T}(\omega)`. If ``y_spectral_densities`` 
+        is set to `None` (i.e. the default value), then the environment is not 
+        coupled to the :math:`y`-components of the system's spins.
+    z_spectral_densities : `array_like` (:class:`sbc.bath.SpectralDensity`, shape=(``L``,)) | `None`, read-only
+        The spectral densities of noise coupled to the :math:`z`-components of 
+        the system's spins at temperature :math:`T`. If ``z_spectral_densities``
+        is an array, then ``z_spectral_densities[r]`` is the spectral density 
+        for site ``r``, :math:`A_{z;r;T}(\omega)`. If ``z_spectral_densities`` 
+        is set to `None` (i.e. the default value), then the environment is not 
+        coupled to the :math:`z`-components of the system's spins.
     """
     def __init__(self,
+                 L,
                  beta,
-                 tau,
-                 spectral_density_y_cmpnt_0T=None,
-                 spectral_density_z_cmpnt_0T=None):
-        self.tau = tau
-        
-        if spectral_density_y_cmpnt_0T == None:
-            self.spectral_density_y_cmpnt = None
-        else:
-            self.spectral_density_y_cmpnt = \
-                SpectralDensityCmpnt(spectral_density_y_cmpnt_0T, beta)
-            
-        if spectral_density_z_cmpnt_0T == None:
-            self.spectral_density_z_cmpnt = None
-        else:
-            self.spectral_density_z_cmpnt = \
-                SpectralDensityCmpnt(spectral_density_z_cmpnt_0T, beta)
+                 memory,
+                 y_coupling_energy_scales=None,
+                 z_coupling_energy_scales=None,
+                 y_spectral_densities_0T=None,
+                 z_spectral_densities_0T=None):
+        self.L = L
+        self.memory = memory if memory >= 0.0 else 0.0
+
+        partial_ctor_param_list = copy.deepcopy([y_coupling_energy_scales,
+                                                 z_coupling_energy_scales,
+                                                 y_spectral_densities_0T,
+                                                 z_spectral_densities_0T])
+
+        for idx, _ in enumerate(partial_ctor_param_list):
+            if partial_ctor_param_list[idx] == None:
+                partial_ctor_param_list[(idx+2)%4] = None
+            else:
+                if len(partial_ctor_param_list[idx]) == 0:
+                    partial_ctor_param_list[idx] = None
+                    partial_ctor_param_list[(idx+2)%4] = None
+
+        self._check_partial_ctor_param_list(partial_ctor_param_list)
+
+        for idx1, _ in enumerate(partial_ctor_param_list):
+            if partial_ctor_param_list[idx1] == None:
+                continue
+
+            expected_class = Scalar if idx1 < 2 else SpectralDensity0T
+            for idx2, elem in enumerate(partial_ctor_param_list[idx1]):
+                if isinstance(elem, expected_class):
+                    updated_elem = (elem if idx1 < 2
+                                    else SpectralDensity(elem, beta))
+                    partial_ctor_param_list[idx1][idx2] = updated_elem
+                else:
+                    trivial_updated_elem = (expected_class(elem) if idx1 < 2
+                                            else _trivial_spectral_density)
+                    partial_ctor_param_list[idx1][idx2] = trivial_updated_elem
+
+        self.y_coupling_energy_scales = partial_ctor_param_list[0]
+        self.z_coupling_energy_scales = partial_ctor_param_list[1]
+        self.y_spectral_densities = partial_ctor_param_list[2]
+        self.z_spectral_densities = partial_ctor_param_list[3]
 
         return None
 
 
 
-def _calc_K_tau(tau, dt):
-    r"""This function implements Eq. (67) of the detailed manuscript (DM) on our
-    QUAPI-TN approach. See Sec. 2.5 of DM for further context.
-    """
-    K_tau = max(0, ceil((tau - 7.0*dt/4.0) / dt)) + 3
+    def _check_partial_ctor_param_list(self, partial_ctor_param_list):
+        candidate_Ls = set()
+        for ctor_param in partial_ctor_param_list:
+            if ctor_param != None:
+                if len(ctor_param) != 0:
+                    candidate_Ls.add(len(ctor_param))
 
-    return K_tau
+        if len(candidate_Ls) != 0:
+            L = candidate_Ls.pop()
+            if (L != self.L) or (len(candidate_Ls) != 0):
+                raise IndexError("One or more of the following parameters: "
+                                 "``y_coupling_energy_scales``, "
+                                 "``z_coupling_energy_scales``, "
+                                 "``y_spectral_densities_0T``, "
+                                 "``z_spectral_densities_0T``, are of "
+                                 "dimensions incompatible with the parameter "
+                                 "``L``.")
 
-
-
-# Define a trivial spectral density component which always evaluates to zero.
-_trivial_spectral_density_subcmpnt_0T = \
-    SpectralDensitySubcmpnt0T(func_form=lambda omega: 0.0,
-                              func_kwargs={},
-                              hard_cutoff_freq=1.0e-10,
-                              zero_pt_derivative=0.0)
-_trivial_spectral_density_cmpnt_0T = \
-    SpectralDensityCmpnt0T(subcmpnts=[_trivial_spectral_density_subcmpnt_0T])
-_trivial_spectral_density_cmpnt = \
-    SpectralDensityCmpnt(limit_0T=_trivial_spectral_density_cmpnt_0T, beta=1.0)
+        return None
