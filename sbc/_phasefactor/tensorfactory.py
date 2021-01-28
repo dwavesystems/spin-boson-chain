@@ -10,7 +10,7 @@ that encode the phase factor effects of z-fields and zz-couplers.
 #####################################
 
 # For creating multi-dimensional arrays to be used to construct tensor nodes
-# and networks.
+# and networks. Also to perform SVDs and matrix multiplication.
 import numpy as np
 
 # For creating tensor networks and performing contractions.
@@ -142,7 +142,7 @@ class ZZCouplerPhaseFactorNodeRank2():
             
 
 
-    def build(self, r, k, n):
+    def underlying_tensor(self, r, k, n):
         self.weights, self.k_prime_set = calc_weights_and_k_prime_set(k, n)
 
         tensor = np.zeros([4, 4], dtype=np.complex128)
@@ -151,9 +151,33 @@ class ZZCouplerPhaseFactorNodeRank2():
                 phase = self.calc_phase(r, j_r_m_gt, j_rP1_m_lt)
                 tensor[j_r_m_gt, j_rP1_m_lt] = np.exp(1.0j * phase)
             
-        node = tn.Node(tensor)
+        return tensor
 
-        return node
+
+
+    def build_and_split(self, r, k, n):
+        tensor = self.underlying_tensor(r, k, n)
+        U, S, V_dagger = np.linalg.svd(tensor)
+
+        # Remove real and imaginary parts of U that are near zero, to avoid
+        # potential numerical instabilities.
+        tol = 1.0e-13
+        U.real[abs(U.real)<tol] = 0.0
+        U.imag[abs(U.imag)<tol] = 0.0
+
+        # Remove real and imaginary parts of V_dagger that are near zero, to
+        # avoid potential numerical instabilities.
+        V_dagger.real[abs(V_dagger.real)<tol] = 0.0
+        V_dagger.imag[abs(V_dagger.imag)<tol] = 0.0
+
+        sqrt_S = np.diag(np.sqrt(S))
+        left_tensor = np.matmul(U, sqrt_S)
+        right_tensor = np.matmul(sqrt_S, V_dagger)        
+
+        left_node = tn.Node(left_tensor)
+        right_node = tn.Node(right_tensor)
+
+        return left_node, right_node
 
 
 
@@ -170,15 +194,13 @@ class ZFieldZZCouplerPhaseFactorMPS():
 
 
     def build(self, k, n):
-        z_field_phase_factor_node_rank_3_factory = \
-            self.z_field_phase_factor_node_rank_3_factory
-        zz_coupler_phase_factor_node_rank_2_factory = \
-            self.zz_coupler_phase_factor_node_rank_2_factory
+        M_node_factory = self.z_field_phase_factor_node_rank_3_factory
+        X_node_factory = self.zz_coupler_phase_factor_node_rank_2_factory
         L = self.L
         
         mps_nodes = []
         for r in range(L):
-            M_node = z_field_phase_factor_node_rank_3_factory.build(r, k, n)
+            M_node = M_node_factory.build(r, k, n)
 
             if r != 0:
                 nodes_to_contract = [X_lt_node, M_node]
@@ -188,15 +210,7 @@ class ZFieldZZCouplerPhaseFactorMPS():
                 mps_node = M_node
 
             if r != L-1:
-                X_node = \
-                    zz_coupler_phase_factor_node_rank_2_factory.build(r, k, n)
-
-                left_edges = (X_node[0],)
-                right_edges = (X_node[1],)
-                X_gt_node, X_lt_node, _ = \
-                    tn.split_node(X_node, left_edges, right_edges)
-
-                X_gt_node[-1] | X_lt_node[0]  # Break edge between nodes.
+                X_gt_node, X_lt_node = X_node_factory.build_and_split(r, k, n)
 
                 nodes_to_contract = [mps_node, X_gt_node]
                 network_struct = [(-1, -2, 1), (1, -3)]

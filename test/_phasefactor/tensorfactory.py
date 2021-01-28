@@ -62,8 +62,7 @@ print("Constructing instances of "
 
 dt = 0.1
 L = system_model.L
-z_field_phase_factor_node_rank_3_factory = \
-    tensorfactory.ZFieldPhaseFactorNodeRank3(system_model, dt)
+M_node_factory = tensorfactory.ZFieldPhaseFactorNodeRank3(system_model, dt)
 
 unformatted_msg_1 = "    Building node for (r, k, n)=({}, {}, {}):"
 unformatted_msg_2 = "        node.tensor[{}, {}, {}] = {}"
@@ -72,7 +71,7 @@ for r in range(L):
         for k in range(n+2):
             msg = unformatted_msg_1.format(r, k, n)
             print(msg)
-            node = z_field_phase_factor_node_rank_3_factory.build(r, k, n)
+            node = M_node_factory.build(r, k, n)
             for j_r_m_lt in range(node.shape[0]):
                 for j_r_m in range(4):
                     for j_r_m_gt in range(4):
@@ -107,8 +106,7 @@ print("Constructing instances of "
       "``_phasefactor.tensorfactory.ZZCouplerPhaseFactorNodeRank2`` to build "
       "several nodes:\n")
 
-z_coupler_phase_factor_node_rank_2_factory = \
-    tensorfactory.ZZCouplerPhaseFactorNodeRank2(system_model, dt)
+X_node_factory = tensorfactory.ZZCouplerPhaseFactorNodeRank2(system_model, dt)
 
 unformatted_msg_1 = "    Building node for (r, k, n)=({}, {}, {}):"
 unformatted_msg_2 = "        node.tensor[{}, {}] = {}"
@@ -117,10 +115,10 @@ for r in range(L-1):
         for k in range(n+2):
             msg = unformatted_msg_1.format(r, k, n)
             print(msg)
-            node = z_coupler_phase_factor_node_rank_2_factory.build(r, k, n)
+            tensor = X_node_factory.underlying_tensor(r, k, n)
             for j_r_m_gt in range(4):
                 for j_r_m_lt in range(4):
-                    elem = node.tensor[j_r_m_gt, j_r_m_lt]
+                    elem = tensor[j_r_m_gt, j_r_m_lt]
                     msg = unformatted_msg_2.format(j_r_m_gt, j_r_m_lt, elem)
                     print(msg)
             print()
@@ -147,3 +145,5 @@ n = 5
 mps_nodes = z_field_zz_coupler_phase_factor_mps_factory.build(k, n)
 print("    Building MPS for (k, n)=({}, {}):".format(k, n))
 print("        # of nodes in MPS: {}".format(len(mps_nodes)))
+print("        elements of r=1 node:")
+print(mps_nodes[1].tensor)
