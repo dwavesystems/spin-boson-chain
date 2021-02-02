@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-r"""For performing the application of a MPO to a MPS.
+r"""Contains an implementation for applying MPO's to MPS's.
 """
 
 

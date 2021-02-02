@@ -14,6 +14,7 @@ which ``sbc`` is based.
 from . import eta
 from . import twopt
 from . import tensorfactory
+from . import path
 
 
 

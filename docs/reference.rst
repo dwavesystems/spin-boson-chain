@@ -16,4 +16,4 @@ sbc reference guide
     scalar
     system
     bath
-    tn
+    trunc
