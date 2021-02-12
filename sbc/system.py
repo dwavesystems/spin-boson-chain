@@ -146,41 +146,13 @@ class Model():
     """
     def __init__(self, z_fields=None, x_fields=None, zz_couplers=None):
         self.L = self._determine_L(z_fields, x_fields, zz_couplers)
+        self.x_fields = self._construct_attribute(x_fields, self.L)
+        self.z_fields = self._construct_attribute(z_fields, self.L)
+        self.zz_couplers = self._construct_attribute(zz_couplers, self.L-1)
+
+        self._map_btwn_site_indices_and_unique_x_fields = \
+            self._calc_map_btwn_site_indices_and_unique_x_fields()
         
-        if z_fields == None:
-            z_fields = [0] * self.L
-        if len(z_fields) == 0:
-            z_fields = [0] * self.L
-        if x_fields == None:
-            x_fields = [0] * self.L
-        if len(x_fields) == 0:
-            x_fields = [0] * self.L
-        if zz_couplers == None:
-            zz_couplers = [0] * (self.L-1)
-        if len(zz_couplers) == 0:
-            zz_couplers = [0] * (self.L-1)
-
-        self.z_fields = []
-        for z_field in z_fields:
-            if isinstance(z_field, Scalar):
-                self.z_fields += [z_field]
-            else:
-                self.z_fields += [Scalar(z_field)]
-
-        self.x_fields = []
-        for x_field in x_fields:
-            if isinstance(x_field, Scalar):
-                self.x_fields += [x_field]
-            else:
-                self.x_fields += [Scalar(x_field)]
-                
-        self.zz_couplers = []
-        for zz_coupler in zz_couplers:
-            if isinstance(zz_coupler, Scalar):
-                self.zz_couplers += [zz_coupler]
-            else:
-                self.zz_couplers += [Scalar(zz_coupler)]
-                
         return None
 
 
@@ -206,3 +178,34 @@ class Model():
             L = candidate_Ls.pop()
 
         return L
+
+
+
+    def _construct_attribute(self, ctor_param, array_size):
+        if ctor_param == None:
+            ctor_param = [0] * array_size
+        if len(ctor_param) == 0:
+            ctor_param = [0] * array_size
+
+        attribute = ctor_param[:]
+        elem_already_set = [False] * self.L
+        for idx1 in range(0, array_size):
+            if not isinstance(attribute[idx1], Scalar):
+                attribute[idx1] = Scalar(attribute[idx1])
+            for idx2 in range(idx1+1, array_size):
+                if ctor_param[idx2] == ctor_param[idx1]:
+                    attribute[idx2] = attribute[idx1]
+                    elem_already_set[idx2] = True
+
+        return attribute
+
+
+
+    def _calc_map_btwn_site_indices_and_unique_x_fields(self):
+        result = list(range(self.L))
+        for idx1 in range(self.L):
+            for idx2 in range(idx1+1, self.L):
+                if self.x_fields[idx2] == self.x_fields[idx1]:
+                    result[idx2] = result[idx1]
+
+        return result

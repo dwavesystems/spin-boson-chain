@@ -141,6 +141,9 @@ from math import ceil
 # For evaluating special math functions.
 import numpy as np
 
+# For evaluating numerically integrals.
+from scipy.integrate import quad
+
 
 
 # Import class representing time-dependent scalar model parameters.
@@ -170,7 +173,8 @@ __all__ = ["SpectralDensity",
            "SpectralDensity0T",
            "SpectralDensityCmpnt",
            "SpectralDensityCmpnt0T",
-           "Model"]
+           "Model",
+           "noise_strength"]
 
 
 
@@ -367,6 +371,30 @@ class SpectralDensity0T():
 
 
 
+    def __eq__(self, obj):
+        # Defining custom equality method.
+        if not isinstance(obj, SpectralDensity0T):
+            result = False
+        else:
+            if self.cmpnts == obj.cmpnts:
+                result = True
+            else:
+                result = False
+
+        return result
+
+
+
+    def __hash__(self):
+        # Custom __eq__ makes class unhashable by default. The following is
+        # necessary in order for the class to behave properly with sets and
+        # dictionaries.
+        result = hash((self.cmpnts,))
+
+        return result
+
+
+
 class SpectralDensityCmpnt():
     r"""A component of some finite-temperature spectral density of noise.
 
@@ -480,7 +508,7 @@ class SpectralDensityCmpnt():
 
         return result
 
-
+    
 
 class SpectralDensityCmpnt0T():
     r"""A component of the zero-temperature limit of some spectral density of 
@@ -568,7 +596,7 @@ class SpectralDensityCmpnt0T():
         A hard cutoff frequency. For frequencies ``omega`` satisfying
         ``omega >= hard_cutoff_freq``, :math:`A_{\nu;r;T=0;\varsigma}(\omega)`
         evaluates to zero.
-    zero_pt_derivative : `float` | `None`, read-only
+    zero_pt_derivative : `float`, read-only
         The limit of the derivative of :math:`A_{\nu;r;T=0;\varsigma}(\omega)` 
         as :math:`\omega` approaches zero from the right. 
     """
@@ -626,6 +654,47 @@ class SpectralDensityCmpnt0T():
 
     def _eval(self, omega):
         result = self.func_form(omega, **self.func_kwargs)
+
+        return result
+
+
+
+    def __eq__(self, obj):
+        # Defining custom equality method.
+        if not isinstance(obj, SpectralDensityCmpnt0T):
+            result = False
+        else:
+            co_code_1 = self._func_form.__code__.co_code  # Bytecode.
+            co_code_2 = obj._func_form.__code__.co_code
+            func_kwargs_1 = self._func_kwargs
+            func_kwargs_2 = obj._func_kwargs
+            hard_cutoff_freq_1 = self.hard_cutoff_freq
+            hard_cutoff_freq_2 = obj.hard_cutoff_freq
+            zero_pt_derivative_1 = self.zero_pt_derivative
+            zero_pt_derivative_2 = obj.zero_pt_derivative
+            if ((co_code_1 == co_code_2)
+                and (func_kwargs_1 == func_kwargs_2)
+                and (hard_cutoff_freq_1 == hard_cutoff_freq_2)
+                and (zero_pt_derivative_1 == zero_pt_derivative_2)):
+                result = True
+            else:
+                result = False
+
+        return result
+
+
+
+    def __hash__(self):
+        # Custom __eq__ makes class unhashable by default. The following is
+        # necessary in order for the class to behave properly with sets and
+        # dictionaries.
+        func_form_co_code = self._func_form.__code__.co_code  # Bytecode.
+        func_kwargs_in_tuple_form = tuple(sorted(self._func_kwargs.items()))
+        hard_cutoff_freq = self.hard_cutoff_freq
+        zero_pt_derivative = self.zero_pt_derivative
+        tuple_to_hash = (func_form_co_code, func_kwargs_in_tuple_form,
+                         hard_cutoff_freq, zero_pt_derivative)
+        result = hash(tuple_to_hash)
 
         return result
 
@@ -757,40 +826,33 @@ class Model():
         self.L = L
         self.memory = memory if memory >= 0.0 else 0.0
 
-        partial_ctor_param_list = copy.deepcopy([y_coupling_energy_scales,
-                                                 z_coupling_energy_scales,
-                                                 y_spectral_densities_0T,
-                                                 z_spectral_densities_0T])
+        partial_ctor_param_list = [y_coupling_energy_scales,
+                                   z_coupling_energy_scales,
+                                   y_spectral_densities_0T,
+                                   z_spectral_densities_0T]
 
         for idx, _ in enumerate(partial_ctor_param_list):
             if partial_ctor_param_list[idx] == None:
                 partial_ctor_param_list[(idx+2)%4] = None
             else:
-                if len(partial_ctor_param_list[idx]) == 0:
+                if ((len(partial_ctor_param_list[idx]) == 0)
+                    or all(elem == 0 for elem in partial_ctor_param_list[idx])):
                     partial_ctor_param_list[idx] = None
                     partial_ctor_param_list[(idx+2)%4] = None
 
         self._check_partial_ctor_param_list(partial_ctor_param_list)
 
-        for idx1, _ in enumerate(partial_ctor_param_list):
-            if partial_ctor_param_list[idx1] == None:
-                continue
+        self.y_coupling_energy_scales = \
+            self._construct_attribute(partial_ctor_param_list[0])
+        self.z_coupling_energy_scales = \
+            self._construct_attribute(partial_ctor_param_list[1])
+        self.y_spectral_densities = \
+            self._construct_attribute(partial_ctor_param_list[2], beta)
+        self.z_spectral_densities = \
+            self._construct_attribute(partial_ctor_param_list[3], beta)
 
-            expected_class = Scalar if idx1 < 2 else SpectralDensity0T
-            for idx2, elem in enumerate(partial_ctor_param_list[idx1]):
-                if isinstance(elem, expected_class):
-                    updated_elem = (elem if idx1 < 2
-                                    else SpectralDensity(elem, beta))
-                    partial_ctor_param_list[idx1][idx2] = updated_elem
-                else:
-                    trivial_updated_elem = (expected_class(elem) if idx1 < 2
-                                            else _trivial_spectral_density)
-                    partial_ctor_param_list[idx1][idx2] = trivial_updated_elem
-
-        self.y_coupling_energy_scales = partial_ctor_param_list[0]
-        self.z_coupling_energy_scales = partial_ctor_param_list[1]
-        self.y_spectral_densities = partial_ctor_param_list[2]
-        self.z_spectral_densities = partial_ctor_param_list[3]
+        self._map_btwn_site_indices_and_unique_local_model_cmpnt_sets = \
+            self._calc_map_btwn_site_indices_and_unique_local_model_cmpnt_sets()
 
         return None
 
@@ -815,3 +877,115 @@ class Model():
                                  "``L``.")
 
         return None
+
+
+
+    def _construct_attribute(self, ctor_param, beta=None):
+        if ctor_param == None:
+            attribute = None
+            return attribute
+
+        expected_type = Scalar if beta == None else SpectralDensity0T
+
+        attribute = ctor_param[:]
+        elem_already_set = [False] * self.L
+        for idx1 in range(self.L):
+            if elem_already_set[idx1] == False:
+                elem = attribute[idx1]
+            
+                if isinstance(elem, expected_type):
+                    updated_elem = (elem if expected_type == Scalar
+                                    else SpectralDensity(elem, beta))
+                    attribute[idx1] = updated_elem
+                else:
+                    trivial_updated_elem = (expected_type(elem)
+                                            if expected_type == Scalar
+                                            else _trivial_spectral_density)
+                    attribute[idx1] = trivial_updated_elem
+
+            for idx2 in range(idx1+1, self.L):
+                if ctor_param[idx2] == ctor_param[idx1]:
+                    attribute[idx2] = attribute[idx1]
+                    elem_already_set[idx2] = True
+                
+        return attribute
+
+
+
+    def _calc_map_btwn_site_indices_and_unique_local_model_cmpnt_sets(self):
+        attributes = (self.y_coupling_energy_scales,
+                      self.z_coupling_energy_scales,
+                      self.y_spectral_densities,
+                      self.z_spectral_densities)
+
+        local_model_cmpnt_sets = [None] * self.L
+        for idx in range(self.L):
+            local_model_cmpnt_set = []
+            for attribute in attributes:
+                if attribute != None:
+                    local_model_cmpnt_set += [attribute[idx]]
+            local_model_cmpnt_sets[idx] = local_model_cmpnt_set
+
+        result = list(range(self.L))
+        for idx1 in range(self.L):
+            for idx2 in range(idx1+1, self.L):
+                if local_model_cmpnt_sets[idx2] == local_model_cmpnt_sets[idx1]:
+                    result[idx2] = result[idx1]
+
+        return result
+
+
+
+def noise_strength(spectral_density):
+    r"""Calculate strength of a given source of noise.
+
+    For background information on spectral densities, see the documentation for
+    the module :mod:`sbc.bath`. 
+
+    For a given source of noise, characterized by the spectral density of
+    noise :math:`A_{\nu;r;T}(\omega)` at temperature :math:`T`, we can
+    characterize the strength of this noise by calculating:
+
+    .. math ::
+        W = \int_{-\infty}^{\infty}\frac{d\omega}{2\pi} A_{\nu;r;T}(\omega).
+        :label: bath_W_expr
+
+    The function :func:`sbc.bath.noise_strength` calculates the quantity
+    :math:`W` given a spectral density :math:`A_{\nu;r;T}(\omega)`.
+
+    Parameters
+    ----------
+    spectral_density : :class:`sbc.bath.SpectralDensity` | :class:`sbc.bath.SpectralDensityCmpnt` | :class:`sbc.bath.SpectralDensity0T` | :class:`sbc.bath.SpectralDensityCmpnt0T`
+        The spectral density of noise of interest :math:`A_{\nu;r;T}(\omega)`.
+
+    Returns
+    -------
+    W : `float`
+        The strength of the noise :math:`W`.
+    """
+    integrand = lambda omega: spectral_density.eval(omega) / 2.0 / np.pi
+    limit = 10000
+
+    if isinstance(spectral_density, SpectralDensity):
+        freq_cutoffs = [spectral_density_cmpnt.limit_0T.hard_cutoff_freq
+                        for spectral_density_cmpnt in spectral_density.cmpnts]
+        max_freq_cutoff = max(freq_cutoffs)
+        pts = (-max_freq_cutoff, 0, max_freq_cutoff)
+    elif isinstance(spectral_density, SpectralDensityCmpnt):
+        max_freq_cutoff = spectral_density.limit_0T.hard_cutoff_freq
+        pts = (-max_freq_cutoff, 0, max_freq_cutoff)
+    elif isinstance(spectral_density, SpectralDensity0T):
+        freq_cutoffs = [spectral_density_cmpnt.hard_cutoff_freq
+                        for spectral_density_cmpnt in spectral_density.cmpnts]
+        max_freq_cutoff = max(freq_cutoffs)
+        pts = (0, 0, max_freq_cutoff)
+    elif isinstance(spectral_density, SpectralDensityCmpnt0T):
+        max_freq_cutoff = spectral_density.hard_cutoff_freq
+        pts = (0, 0, max_freq_cutoff)
+    
+    W = quad(integrand, a=pts[0], b=pts[1], limit=limit)[0]
+    W += quad(integrand, a=pts[1], b=pts[2], limit=limit)[0]
+    W = np.sqrt(W)
+
+    return W
+    

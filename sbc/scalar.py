@@ -117,3 +117,35 @@ class Scalar():
         result = self._func_form(t, **self._func_kwargs)
 
         return result
+
+
+
+    def __eq__(self, obj):
+        # Defining custom equality method.
+        if not isinstance(obj, Scalar):
+            result = False
+        else:
+            co_code_1 = self._func_form.__code__.co_code  # Bytecode.
+            co_code_2 = obj._func_form.__code__.co_code
+            func_kwargs_1 = self._func_kwargs
+            func_kwargs_2 = obj._func_kwargs
+            if (co_code_1 == co_code_2) and (func_kwargs_1 == func_kwargs_2):
+                result = True
+            else:
+                result = False
+
+        return result
+
+
+
+    def __hash__(self):
+        # Custom __eq__ makes class unhashable by default. The following is
+        # necessary in order for the class to behave properly with sets and
+        # dictionaries.
+        func_form_co_code = self._func_form.__code__.co_code  # Bytecode.
+        func_kwargs_in_tuple_form = tuple(sorted(self._func_kwargs.items()))
+        result = hash((func_form_co_code, func_kwargs_in_tuple_form))
+
+        return result
+
+        

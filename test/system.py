@@ -512,3 +512,238 @@ try:
 except IndexError as e:
     print(e)
     print("\n\n")
+
+
+
+# system.Model test #12.
+print("system.Model test #12")
+print("====================")
+
+def linear_fn(t, a, b):
+    return a*t+b
+
+def quad_fn(t, a, b):
+    return a * t * t + b
+
+def cubic_fn(t, a, b):
+    return a * t * t * t + b
+
+const_scalar_1 = 2.5
+const_scalar_2 = -2.5
+
+func_kwargs_1 = {"a": 2.0, "b": -1.0}
+func_kwargs_2 = {"a": 4.0, "b": -2.0}
+func_kwargs_3 = {"a": -2.0, "b": 1.0}
+func_kwargs_4 = {"a": -4.0, "b": 2.0}
+func_kwargs_5 = {"a": 10, "b": 1}
+func_kwargs_6 = {"a": -10, "b": -1}
+
+model_param_1 = Scalar(linear_fn, func_kwargs_1)
+model_param_2 = Scalar(linear_fn, func_kwargs_2)
+model_param_3 = Scalar(quad_fn, func_kwargs_3)
+model_param_4 = Scalar(quad_fn, func_kwargs_4)
+model_param_5 = Scalar(cubic_fn, func_kwargs_5)
+model_param_6 = Scalar(cubic_fn, func_kwargs_6)
+
+z_fields = [model_param_1, model_param_2, const_scalar_1,
+            model_param_3, const_scalar_2]
+x_fields = [model_param_3, model_param_4, const_scalar_2,
+            const_scalar_2, model_param_3]
+zz_couplers = [model_param_5, model_param_6, model_param_6, model_param_6]
+
+print("Constructing a system model parameter set.\n")
+model = system.Model(z_fields=z_fields,
+                     x_fields=x_fields,
+                     zz_couplers=zz_couplers)
+print("Print attributes of object:")
+print("    z_fields =", model.z_fields)
+print("    x_fields =", model.x_fields)
+print("    zz_couplers =", model.zz_couplers)
+print("    _map_btwn_site_indices_and_unique_x_fields =",
+      model._map_btwn_site_indices_and_unique_x_fields)
+print("    L =", model.L)
+print()
+print("Evaluate z_fields[0] at t=2.0:")
+print("    z_fields[0](t=2.0) =", model.z_fields[0].eval(2.0))
+print("Evaluate z_fields[1] at t=2.0:")
+print("    z_fields[1](t=2.0) =", model.z_fields[1].eval(2.0))
+print("Evaluate z_fields[2] at t=2.0:")
+print("    z_fields[2](t=2.0) =", model.z_fields[2].eval(2.0))
+print("Evaluate z_fields[3] at t=2.0:")
+print("    z_fields[3](t=2.0) =", model.z_fields[3].eval(2.0))
+print("Evaluate z_fields[4] at t=2.0:")
+print("    z_fields[4](t=2.0) =", model.z_fields[4].eval(2.0))
+print("Evaluate z_fields[0] at t=2.0:")
+print("    x_fields[0](t=2.0) =", model.x_fields[0].eval(2.0))
+print("Evaluate x_fields[1] at t=2.0:")
+print("    x_fields[1](t=2.0) =", model.x_fields[1].eval(2.0))
+print("Evaluate x_fields[2] at t=2.0:")
+print("    x_fields[2](t=2.0) =", model.x_fields[2].eval(2.0))
+print("Evaluate x_fields[3] at t=2.0:")
+print("    x_fields[3](t=2.0) =", model.x_fields[3].eval(2.0))
+print("Evaluate x_fields[4] at t=2.0:")
+print("    x_fields[4](t=2.0) =", model.x_fields[4].eval(2.0))
+print("Evaluate zz_couplers[0] at t=2.0:")
+print("    zz_couplers[0](t=2.0) =", model.zz_couplers[0].eval(2.0))
+print("Evaluate zz_couplers[1] at t=2.0:")
+print("    zz_couplers[1](t=2.0) =", model.zz_couplers[1].eval(2.0))
+print("Evaluate zz_couplers[2] at t=2.0:")
+print("    zz_couplers[2](t=2.0) =", model.zz_couplers[2].eval(2.0))
+print("Evaluate zz_couplers[3] at t=2.0:")
+print("    zz_couplers[3](t=2.0) =", model.zz_couplers[3].eval(2.0))
+print("\n\n")
+
+
+
+# system.Model test #13.
+print("system.Model test #13")
+print("====================")
+
+def linear_fn(t, a, b):
+    return a*t+b
+
+def quad_fn(t, a, b):
+    return a * t * t + b
+
+def cubic_fn(t, a, b):
+    return a * t * t * t + b
+
+const_scalar_1 = 2.5
+const_scalar_2 = -2.5
+
+func_kwargs_1 = {"a": 2.0, "b": -1.0}
+func_kwargs_2 = {"a": 4.0, "b": -2.0}
+func_kwargs_3 = {"a": -2.0, "b": 1.0}
+func_kwargs_4 = {"a": -4.0, "b": 2.0}
+func_kwargs_5 = {"a": 10, "b": 1}
+func_kwargs_6 = {"a": -10, "b": -1}
+
+model_param_1 = Scalar(linear_fn, func_kwargs_1)
+model_param_2 = Scalar(linear_fn, func_kwargs_2)
+model_param_3 = Scalar(quad_fn, func_kwargs_3)
+model_param_4 = Scalar(quad_fn, func_kwargs_4)
+model_param_5 = Scalar(cubic_fn, func_kwargs_5)
+model_param_6 = Scalar(cubic_fn, func_kwargs_6)
+
+z_fields = [model_param_1, model_param_2, const_scalar_1,
+            model_param_3, model_param_4]
+zz_couplers = [model_param_5, model_param_6, model_param_6, const_scalar_2]
+
+print("Constructing a system model parameter set.\n")
+model = system.Model(z_fields=z_fields, zz_couplers=zz_couplers)
+print("Print attributes of object:")
+print("    z_fields =", model.z_fields)
+print("    x_fields =", model.x_fields)
+print("    zz_couplers =", model.zz_couplers)
+print("    _map_btwn_site_indices_and_unique_x_fields =",
+      model._map_btwn_site_indices_and_unique_x_fields)
+print("    L =", model.L)
+print()
+print("Evaluate z_fields[0] at t=2.0:")
+print("    z_fields[0](t=2.0) =", model.z_fields[0].eval(2.0))
+print("Evaluate z_fields[1] at t=2.0:")
+print("    z_fields[1](t=2.0) =", model.z_fields[1].eval(2.0))
+print("Evaluate z_fields[2] at t=2.0:")
+print("    z_fields[2](t=2.0) =", model.z_fields[2].eval(2.0))
+print("Evaluate z_fields[3] at t=2.0:")
+print("    z_fields[3](t=2.0) =", model.z_fields[3].eval(2.0))
+print("Evaluate z_fields[4] at t=2.0:")
+print("    z_fields[4](t=2.0) =", model.z_fields[4].eval(2.0))
+print("Evaluate z_fields[0] at t=2.0:")
+print("    x_fields[0](t=2.0) =", model.x_fields[0].eval(2.0))
+print("Evaluate x_fields[1] at t=2.0:")
+print("    x_fields[1](t=2.0) =", model.x_fields[1].eval(2.0))
+print("Evaluate x_fields[2] at t=2.0:")
+print("    x_fields[2](t=2.0) =", model.x_fields[2].eval(2.0))
+print("Evaluate x_fields[3] at t=2.0:")
+print("    x_fields[3](t=2.0) =", model.x_fields[3].eval(2.0))
+print("Evaluate x_fields[4] at t=2.0:")
+print("    x_fields[4](t=2.0) =", model.x_fields[4].eval(2.0))
+print("Evaluate zz_couplers[0] at t=2.0:")
+print("    zz_couplers[0](t=2.0) =", model.zz_couplers[0].eval(2.0))
+print("Evaluate zz_couplers[1] at t=2.0:")
+print("    zz_couplers[1](t=2.0) =", model.zz_couplers[1].eval(2.0))
+print("Evaluate zz_couplers[2] at t=2.0:")
+print("    zz_couplers[2](t=2.0) =", model.zz_couplers[2].eval(2.0))
+print("Evaluate zz_couplers[3] at t=2.0:")
+print("    zz_couplers[3](t=2.0) =", model.zz_couplers[3].eval(2.0))
+print("\n\n")
+
+
+
+# system.Model test #14.
+print("system.Model test #14")
+print("====================")
+
+def linear_fn(t, a, b):
+    return a*t+b
+
+def quad_fn(t, a, b):
+    return a * t * t + b
+
+def cubic_fn(t, a, b):
+    return a * t * t * t + b
+
+const_scalar_1 = 2.5
+const_scalar_2 = -2.5
+
+func_kwargs_1 = {"a": 2.0, "b": -1.0}
+func_kwargs_2 = {"a": 4.0, "b": -2.0}
+func_kwargs_3 = {"a": -2.0, "b": 1.0}
+func_kwargs_4 = {"a": -4.0, "b": 2.0}
+func_kwargs_5 = {"a": 10, "b": 1}
+func_kwargs_6 = {"a": -10, "b": -1}
+
+model_param_1 = Scalar(linear_fn, func_kwargs_1)
+model_param_2 = Scalar(linear_fn, func_kwargs_2)
+model_param_3 = Scalar(quad_fn, func_kwargs_3)
+model_param_4 = Scalar(quad_fn, func_kwargs_4)
+model_param_5 = Scalar(cubic_fn, func_kwargs_5)
+model_param_6 = Scalar(cubic_fn, func_kwargs_6)
+
+z_fields = [model_param_1, model_param_2, const_scalar_1,
+            model_param_3, const_scalar_2]
+x_fields = [const_scalar_2, model_param_3, model_param_4,
+            model_param_3, model_param_4]
+zz_couplers = [model_param_5, model_param_6, model_param_6, model_param_6]
+
+print("Constructing a system model parameter set.\n")
+model = system.Model(z_fields=z_fields,
+                     x_fields=x_fields,
+                     zz_couplers=zz_couplers)
+print("Print attributes of object:")
+print("    z_fields =", model.z_fields)
+print("    x_fields =", model.x_fields)
+print("    zz_couplers =", model.zz_couplers)
+print("    _map_btwn_site_indices_and_unique_x_fields =",
+      model._map_btwn_site_indices_and_unique_x_fields)
+print("    L =", model.L)
+print()
+print("Evaluate z_fields[0] at t=2.0:")
+print("    z_fields[0](t=2.0) =", model.z_fields[0].eval(2.0))
+print("Evaluate z_fields[1] at t=2.0:")
+print("    z_fields[1](t=2.0) =", model.z_fields[1].eval(2.0))
+print("Evaluate z_fields[2] at t=2.0:")
+print("    z_fields[2](t=2.0) =", model.z_fields[2].eval(2.0))
+print("Evaluate z_fields[3] at t=2.0:")
+print("    z_fields[3](t=2.0) =", model.z_fields[3].eval(2.0))
+print("Evaluate z_fields[4] at t=2.0:")
+print("    z_fields[4](t=2.0) =", model.z_fields[4].eval(2.0))
+print("Evaluate z_fields[0] at t=2.0:")
+print("    x_fields[0](t=2.0) =", model.x_fields[0].eval(2.0))
+print("Evaluate x_fields[1] at t=2.0:")
+print("    x_fields[1](t=2.0) =", model.x_fields[1].eval(2.0))
+print("Evaluate x_fields[2] at t=2.0:")
+print("    x_fields[2](t=2.0) =", model.x_fields[2].eval(2.0))
+print("Evaluate x_fields[3] at t=2.0:")
+print("    x_fields[3](t=2.0) =", model.x_fields[3].eval(2.0))
+print("Evaluate x_fields[4] at t=2.0:")
+print("    x_fields[4](t=2.0) =", model.x_fields[4].eval(2.0))
+print("Evaluate zz_couplers[0] at t=2.0:")
+print("    zz_couplers[0](t=2.0) =", model.zz_couplers[0].eval(2.0))
+print("Evaluate zz_couplers[1] at t=2.0:")
+print("    zz_couplers[1](t=2.0) =", model.zz_couplers[1].eval(2.0))
+print("Evaluate zz_couplers[2] at t=2.0:")
+print("    zz_couplers[2](t=2.0) =", model.zz_couplers[2].eval(2.0))
+print("Evaluate zz_couplers[3] at t=2.0:")
+print("    zz_couplers[3](t=2.0) =", model.zz_couplers[3].eval(2.0))

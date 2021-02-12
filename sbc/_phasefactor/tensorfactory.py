@@ -64,10 +64,9 @@ def calc_weights_and_k_prime_set(k, n):
 
 
 
-class ZFieldPhaseFactorNodeRank3():
+class ZFieldPhaseFactorNodeRank2():
     def __init__(self, system_model, dt):
         self.z_fields = system_model.z_fields
-        self.L = system_model.L
         self.dt = dt
 
         return None
@@ -89,27 +88,12 @@ class ZFieldPhaseFactorNodeRank3():
 
     def build(self, r, k, n):
         self.weights, self.k_prime_set = calc_weights_and_k_prime_set(k, n)
-        L = self.L
 
-        if (r == 0):
-            tensor = np.zeros([1, 4, 4], dtype=np.complex128)
-            for j_r_m in range(4):
-                j_r_m_gt = j_r_m
-                phase = self.calc_phase(r, j_r_m)
-                tensor[0, j_r_m, j_r_m_gt] = np.exp(1.0j * phase)
-        elif (1 <= r <= L-1):
-            tensor = np.zeros([4, 4, 4], dtype=np.complex128)
-            for j_r_m in range(4):
-                j_r_m_lt = j_r_m
-                j_r_m_gt = j_r_m
-                phase = self.calc_phase(r, j_r_m)
-                tensor[j_r_m_lt, j_r_m, j_r_m_gt] = np.exp(1.0j * phase)
-        elif (r == L):
-            tensor = np.zeros([4, 4, 1], dtype=np.complex128)
-            for j_r_m in range(4):
-                j_r_m_lt = j_r_m
-                phase = self.calc_phase(r, j_r_m)
-                tensor[j_r_m_lt, j_r_m, 0] = np.exp(1.0j * phase)
+        tensor = np.zeros([4, 4], dtype=np.complex128)
+        for j_r_m in range(4):
+            j_r_m_prime = j_r_m
+            phase = self.calc_phase(r, j_r_m)
+            tensor[j_r_m, j_r_m_prime] = np.exp(1.0j * phase)
             
         node = tn.Node(tensor)
 
@@ -117,7 +101,7 @@ class ZFieldPhaseFactorNodeRank3():
 
 
 
-class ZZCouplerPhaseFactorNodeRank2():
+class ZZCouplerPhaseFactorNodeRank4():
     def __init__(self, system_model, dt):
         self.zz_couplers = system_model.zz_couplers
         self.dt = dt
@@ -142,80 +126,18 @@ class ZZCouplerPhaseFactorNodeRank2():
             
 
 
-    def underlying_tensor(self, r, k, n):
+    def build(self, r, k, n):
         self.weights, self.k_prime_set = calc_weights_and_k_prime_set(k, n)
 
-        tensor = np.zeros([4, 4], dtype=np.complex128)
-        for j_r_m_gt in range(4):
-            for j_rP1_m_lt in range(4):
-                phase = self.calc_phase(r, j_r_m_gt, j_rP1_m_lt)
-                tensor[j_r_m_gt, j_rP1_m_lt] = np.exp(1.0j * phase)
+        tensor = np.zeros([4, 4, 4, 4], dtype=np.complex128)
+        for j_r_m in range(4):
+            j_r_m_prime = j_r_m
+            for j_rP1_m in range(4):
+                j_rP1_m_prime = j_rP1_m
+                phase = self.calc_phase(r, j_r_m, j_rP1_m)
+                tensor[j_r_m, j_r_m_prime, j_rP1_m_prime, j_rP1_m] = \
+                    np.exp(1.0j * phase)
+
+        node = tn.Node(tensor)
             
-        return tensor
-
-
-
-    def build_and_split(self, r, k, n):
-        tensor = self.underlying_tensor(r, k, n)
-        U, S, V_dagger = np.linalg.svd(tensor)
-
-        # Remove real and imaginary parts of U that are near zero, to avoid
-        # potential numerical instabilities.
-        tol = 1.0e-13
-        U.real[abs(U.real)<tol] = 0.0
-        U.imag[abs(U.imag)<tol] = 0.0
-
-        # Remove real and imaginary parts of V_dagger that are near zero, to
-        # avoid potential numerical instabilities.
-        V_dagger.real[abs(V_dagger.real)<tol] = 0.0
-        V_dagger.imag[abs(V_dagger.imag)<tol] = 0.0
-
-        sqrt_S = np.diag(np.sqrt(S))
-        left_tensor = np.matmul(U, sqrt_S)
-        right_tensor = np.matmul(sqrt_S, V_dagger)        
-
-        left_node = tn.Node(left_tensor)
-        right_node = tn.Node(right_tensor)
-
-        return left_node, right_node
-
-
-
-class ZFieldZZCouplerPhaseFactorMPS():
-    def __init__(self, system_model, dt):
-        self.z_field_phase_factor_node_rank_3_factory = \
-            ZFieldPhaseFactorNodeRank3(system_model, dt)
-        self.zz_coupler_phase_factor_node_rank_2_factory = \
-            ZZCouplerPhaseFactorNodeRank2(system_model, dt)
-        self.L = system_model.L
-
-        return None
-
-
-
-    def build(self, k, n):
-        M_node_factory = self.z_field_phase_factor_node_rank_3_factory
-        X_node_factory = self.zz_coupler_phase_factor_node_rank_2_factory
-        L = self.L
-        
-        mps_nodes = []
-        for r in range(L):
-            M_node = M_node_factory.build(r, k, n)
-
-            if r != 0:
-                nodes_to_contract = [X_lt_node, M_node]
-                network_struct = [(-1, 1), (1, -2, -3)]
-                mps_node = tn.ncon(nodes_to_contract, network_struct)
-            else:
-                mps_node = M_node
-
-            if r != L-1:
-                X_gt_node, X_lt_node = X_node_factory.build_and_split(r, k, n)
-
-                nodes_to_contract = [mps_node, X_gt_node]
-                network_struct = [(-1, -2, 1), (1, -3)]
-                mps_node = tn.ncon(nodes_to_contract, network_struct)
-            
-            mps_nodes += [mps_node]
-
-        return mps_nodes
+        return node

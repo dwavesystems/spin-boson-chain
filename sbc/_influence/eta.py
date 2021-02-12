@@ -127,12 +127,6 @@ class Eta():
 
 
     def eval_integral_type_R1(self, A_v_r_T_cmpnt, a):
-        # pt1 = self.integration_pts[a]
-        # pt2 = self.integration_pts[a+1]
-        # if pt2 <= pt1:
-        #     result = 0.0
-        #     return result
-        
         W_vars = self.W_vars
         W_var_max = max(W_vars)
         pi = np.pi
@@ -161,13 +155,6 @@ class Eta():
 
 
     def eval_integral_type_R2(self, A_v_r_T_cmpnt, a, u):
-        # pt1 = self.integration_pts[a]
-        # pt2 = self.integration_pts[a+1]
-        
-        # if pt2 <= pt1:
-        #     result = 0.0
-        #     return result
-        
         W_var = self.W_vars[u]
         sign_prefactor = (-1)**(u//2)
         pi = np.pi
@@ -187,13 +174,6 @@ class Eta():
 
 
     def eval_integral_type_I1(self, l1, l2, A_v_r_T_cmpnt, a):
-        # pt1 = self.integration_pts[a]
-        # pt2 = self.integration_pts[a+1]
-        
-        # if (l1 == l2) or (pt2 <= pt1):
-        #     result = 0.0
-        #     return result
-        
         if (l1 == l2):
             result = 0.0
             return result
@@ -226,14 +206,6 @@ class Eta():
 
 
     def eval_integral_type_I2(self, l1, l2, A_v_r_T_cmpnt, a, u):
-        # pt1 = self.integration_pts[a]
-        # pt2 = self.integration_pts[a+1]
-        # W_var = self.W_vars[u]
-        
-        # if (l1 == l2) or (W_var == 0) or (pt2 <= pt1):
-        #     result = 0.0
-        #     return result
-
         W_var = self.W_vars[u]
         
         if (l1 == l2) or (W_var == 0):

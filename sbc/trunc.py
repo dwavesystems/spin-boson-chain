@@ -35,6 +35,11 @@ __all__ = ["Params"]
 class Params():
     r"""Parameters specifying how to truncate Schmidt spectrum in a SVD.
 
+    ``sbc`` adopts the quasi-adiabatic path integral (QUAPI) formalism to 
+    express the spin system's reduced density matrix as a time-discretized
+    path integral, comprising of a series of influence functionals that encode
+    the non-Markovian dynamics of the system.
+
     ``sbc`` represents the local path influence functionals --- which are the
     objects in the QUAPI formalism that encode all the information regarding
     the non-Markovian dynamics of the system --- by a set of matrix product

@@ -77,10 +77,7 @@ class Path():
 
 
     def evolve(self, num_n_steps):
-        if self.n == 0:
-            self.m2 = 0
-        else:
-            self.m2 = self.max_m2_in_first_iteration_procedure(self.n)+1
+        self.m2 = max(0, self.max_m2_in_first_iteration_procedure(self.n)+1)
         self.n += num_n_steps
 
         while self.m2 <= self.max_m2_in_first_iteration_procedure(self.n):
@@ -102,7 +99,7 @@ class Path():
 
     def m2_step(self):
         m2 = self.m2
-        n= self.n
+        n = self.n
         
         if m2 <= self.max_m2_in_first_iteration_procedure(n):
             mps_nodes = self.Xi_I_1_2_nodes
@@ -112,18 +109,18 @@ class Path():
         mpo_nodes = self.influence_mpo_factory.build(m2+1, n)
         mps_nodes = _apply_mpo_to_mps(mpo_nodes, mps_nodes)
         node = self.influence_node_rank_3_factory.build(m2+1, n)
-        mps_nodes += [node]
+        mps_nodes.append(node)
 
         _left_to_right_svd_sweep_across_mps(mps_nodes, self.trunc_params)
         _right_to_left_svd_sweep_across_mps(mps_nodes, self.trunc_params)
 
-        if (m2 <= self.max_m2_in_first_iteration_procedure(n)):
-            if (self.mu_m_tau(m=m2+2) >= 1):
-                self.Xi_I_1_1_nodes += [mps_nodes.pop(0)]
+        if m2 <= self.max_m2_in_first_iteration_procedure(n):
+            if self.mu_m_tau(m=m2+2) >= 1:
+                self.Xi_I_1_1_nodes.append(mps_nodes.pop(0))
             self.Xi_I_1_2_nodes = mps_nodes
         else:
-            if (self.mu_m_tau(m=m2+2) >= 1):
-                self.Xi_I_dashv_1_nodes += [mps_nodes.pop(0)]
+            if self.mu_m_tau(m=m2+2) >= 1:
+                self.Xi_I_dashv_1_nodes.append(mps_nodes.pop(0))
             self.Xi_I_dashv_2_nodes = mps_nodes
 
         self.m2 += 1

@@ -17,3 +17,7 @@ sbc reference guide
     system
     bath
     trunc
+    alg
+    state
+    ev
+    report
