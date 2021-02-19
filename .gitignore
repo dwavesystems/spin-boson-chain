@@ -6,7 +6,7 @@ __pycache__/
 .ipynb_checkpoints/
 docs/_build/
 docs/reference/
-examples/output*/
+output*/
 
 # Ignore select files
 ostfic/_version.py

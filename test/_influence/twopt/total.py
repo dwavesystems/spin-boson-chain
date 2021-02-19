@@ -199,3 +199,69 @@ for r in range(bath_model.L):
                         msg = unformatted_msg.format(r, m1, m2, n,
                                                      j_r_m1, j_r_m2, result)
                         print(msg)
+
+
+
+# _influence.twopt.Total test #3.
+print("_influence.twopt.Total test #3")
+print("==============================")
+
+print("Constructing an instance of ``system.Model``.\n")
+
+system_model = system.Model(x_fields=[0])
+
+# Need to construct a ``bath.Model`` object that encodes both y- and z-noise.
+print("Constructing an instance of ``bath.Model`` with y-noise.\n")
+
+def A_v_r_0T_s_func_form(omega, lambda_v_s, omega_v_s_c):
+    return lambda_v_s * omega * np.exp(-omega / omega_v_s_c)
+
+lambda_y_1 = 0
+omega_y_1_c = 1
+
+A_y_r_0T_1 = \
+    bath.SpectralDensityCmpnt0T(func_form=A_v_r_0T_s_func_form,
+                                func_kwargs={"lambda_v_s": lambda_y_1,
+                                             "omega_v_s_c": omega_y_1_c},
+                                hard_cutoff_freq=40*omega_y_1_c,
+                                zero_pt_derivative=lambda_y_1)
+
+
+
+A_y_0_0T = bath.SpectralDensity0T(cmpnts=[A_y_r_0T_1])
+
+L = 1
+beta = 100
+nmax = 2
+dt = 0.2
+t_f = nmax*dt
+memory = t_f
+
+bath_model = bath.Model(L=L,
+                        beta=beta,
+                        memory=memory,
+                        y_coupling_energy_scales=[1.0],
+                        y_spectral_densities_0T=[A_y_0_0T])
+
+print("Constructing various instances of ``_influence.twopt.Total`` to "
+      "evaluate the 'total' two-point influence function for a given set of "
+      "system and bath model components for various "
+      "(r, m1, m2, n, j_r_m1, j_r_m2):\n")
+
+unformatted_msg = ("    Evaluating for (r, m1, m2, n, j_r_m1, j_r_m2)="
+                   "({}, {}, {}, {}, {}, {}): Result={}")
+for r in range(bath_model.L):
+    total_two_pt_influence = Total(r, system_model, bath_model, dt)
+    K_tau = total_two_pt_influence.z_bath.K_tau
+    for n in range(1, nmax):
+        for m2 in range(0,3*n+4):
+            mu_m2_tau = max(0, m2-3*K_tau+1)
+            for m1 in range(mu_m2_tau, m2+1):
+                total_two_pt_influence.set_m1_m2_n(m1, m2, n)
+                for j_r_m1 in range(1, 2):
+                    for j_r_m2 in range(1, 2):
+                        result = total_two_pt_influence.eval(j_r_m1, j_r_m2)
+                        msg = unformatted_msg.format(r, m1, m2, n,
+                                                     j_r_m1, j_r_m2, result)
+                        if (m1 == m2-1) and ((m2%3 == 0) or (m2%3 == 1)):
+                            print(msg)

@@ -267,8 +267,8 @@ class TF():
         sigma_r_pos1_q2, sigma_r_neg1_q2 = base_4_to_ising_pair(j_r_m2)
 
         c = self.c
-        result = (0.25 * (sigma_r_pos1_q1+sigma_r_pos1_q2)**2 * cos_cache
-                  + (1.0j**(1+c) * (0.5 * (sigma_r_pos1_q1-sigma_r_pos1_q2))**c
+        result = (0.25 * (sigma_r_pos1_q2+sigma_r_pos1_q1)**2 * cos_cache
+                  + (1.0j**(1+c) * (0.5 * (sigma_r_pos1_q2-sigma_r_pos1_q1))**c
                      * sin_cache))
         result *= (0.25 * (sigma_r_neg1_q1+sigma_r_neg1_q2)**2 * cos_cache
                    - (1.0j**(1+c) * (0.5 * (sigma_r_neg1_q1-sigma_r_neg1_q2))**c
@@ -288,10 +288,10 @@ class YZ():
         sigma_r_pos1_q1, sigma_r_neg1_q1 = base_4_to_ising_pair(j_r_m1)
         sigma_r_pos1_q2, sigma_r_neg1_q2 = base_4_to_ising_pair(j_r_m2)
 
-        result = ((1.0 - 1.0j*sigma_r_neg1_q1 + sigma_r_neg1_q2
-                   + 1.0j*sigma_r_neg1_q1*sigma_r_neg1_q2)
-                  * (1.0 + 1.0j*sigma_r_pos1_q1 + sigma_r_pos1_q2
-                     - 1.0j*sigma_r_pos1_q1*sigma_r_pos1_q2)) / 8.0
+        result = ((1.0 + 1.0j*sigma_r_pos1_q1 + sigma_r_pos1_q2
+                   - 1.0j*sigma_r_pos1_q1*sigma_r_pos1_q2)
+                  * (1.0 - 1.0j*sigma_r_neg1_q1 + sigma_r_neg1_q2
+                     + 1.0j*sigma_r_neg1_q1*sigma_r_neg1_q2)) / 8.0
 
         return result
 
@@ -307,10 +307,10 @@ class ZY():
         sigma_r_pos1_q1, sigma_r_neg1_q1 = base_4_to_ising_pair(j_r_m1)
         sigma_r_pos1_q2, sigma_r_neg1_q2 = base_4_to_ising_pair(j_r_m2)
 
-        result = ((1.0 - 1.0j*sigma_r_pos1_q1 + sigma_r_pos1_q2
-                   + 1.0j*sigma_r_pos1_q1*sigma_r_pos1_q2)
-                  * (1.0 + 1.0j*sigma_r_neg1_q1 + sigma_r_neg1_q2
-                     - 1.0j*sigma_r_neg1_q1*sigma_r_neg1_q2)) / 8.0
+        result = ((1.0 - 1.0j*sigma_r_pos1_q2 + sigma_r_pos1_q1
+                   + 1.0j*sigma_r_pos1_q2*sigma_r_pos1_q1)
+                  * (1.0 + 1.0j*sigma_r_neg1_q2 + sigma_r_neg1_q1
+                     - 1.0j*sigma_r_neg1_q2*sigma_r_neg1_q1)) / 8.0
 
         return result
 

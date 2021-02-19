@@ -4,6 +4,9 @@
 ## Load libraries/packages/modules ##
 #####################################
 
+# For creating sequences of integers.
+from itertools import product
+
 # For profiling code.
 import cProfile, pstats
 
@@ -100,7 +103,11 @@ def inefficient_way_of_calculating_path_yz_noise(total_two_point_influence,
 # To evaluate the influence path, which is represented by a MPS.
 def eval_influence_path(influence_path, j_path):
     result = None
-    mps_nodes = influence_path.Xi_I_1_1_nodes + influence_path.Xi_I_dashv_nodes
+    if isinstance(influence_path, _influence.path.Path):
+        mps_nodes = (influence_path.Xi_I_1_1_nodes
+                     + influence_path.Xi_I_dashv_nodes)
+    else:
+        mps_nodes = influence_path
     
     for mps_node, j in zip(mps_nodes, j_path):
         j_tensor = np.zeros([4])
@@ -122,6 +129,78 @@ def eval_influence_path(influence_path, j_path):
             result = tn.ncon(nodes_to_contract, network_struct)
 
     result = result.tensor[0]
+
+    return result
+
+
+
+# To evaluate the influence path, which is represented by a MPS.
+def eval_reduced_density_matrix(influence_path, j):
+    result = None
+    if isinstance(influence_path, _influence.path.Path):
+        mps_nodes = (influence_path.Xi_I_1_1_nodes
+                     + influence_path.Xi_I_dashv_nodes)
+    else:
+        mps_nodes = influence_path
+    
+    for idx, mps_node in enumerate(mps_nodes):
+        if idx+1 == len(mps_nodes):
+            j_tensor = np.zeros([4])
+            j_tensor[j] = 1
+        else:
+            j_tensor = np.ones([4])
+        j_node = tn.Node(j_tensor)
+
+        nodes_to_contract = [mps_node, j_node]
+        network_struct = [(-1, 1, -2), (1,)]
+        sliced_mps_node = tn.ncon(nodes_to_contract, network_struct)
+
+        if result == None:
+            b_node = tn.Node(np.ones([4]))
+            nodes_to_contract = [b_node, sliced_mps_node]
+            network_struct = [(1,), (1, -1)]
+            result = tn.ncon(nodes_to_contract, network_struct)
+        else:
+            nodes_to_contract = [result, sliced_mps_node]
+            network_struct = [(1,), (1, -2)]
+            result = tn.ncon(nodes_to_contract, network_struct)
+
+    result = result.tensor[0]
+
+    return result
+
+
+
+# To evaluate the influence path, which is represented by a MPS.
+def contract_y_dofs(influence_path):
+    n = influence_path.n
+    Xi_I_nodes = influence_path.Xi_I_1_1_nodes + influence_path.Xi_I_dashv_nodes
+    j_node_1 = tn.Node(np.ones([4]))
+    j_node_2 = tn.Node(np.ones([4]))
+    result = [influence_path.Xi_I_dashv_nodes[0]]
+
+    for k in range(0, n+1):
+        nodes_to_contract = [Xi_I_nodes[3*k+1],
+                             j_node_1,
+                             Xi_I_nodes[3*k+2],
+                             j_node_2,
+                             Xi_I_nodes[3*k+3]]
+        network_struct = [(-1, 1, 3), (1,), (3, 2, 4), (2,), (4, -2, -3)]
+        node = tn.ncon(nodes_to_contract, network_struct)
+        result.append(node)
+
+    return result
+
+
+
+def inefficient_way_for_calculating_rdm_yz_noise(total_two_pt_influence, n, j):
+    result = 0.0j
+    j_paths = product(range(0, 4), repeat=3*n+3)
+    for j_path in j_paths:
+        extended_j_path = list(j_path)+[j]
+        result += \
+            inefficient_way_of_calculating_path_yz_noise(total_two_pt_influence,
+                                                         extended_j_path)
 
     return result
 
@@ -314,3 +393,296 @@ print(unformatted_msg.format(result_1, result_2, rel_diff))
 
 stats = pstats.Stats(profiler).sort_stats("cumulative")
 stats.print_stats()
+
+
+
+# _influence.path.Path test #3.
+print("_influence.path.Path test #3")
+print("============================")
+
+# Need to construct a ``system.Model`` object, which specifies all the model,
+# parameters. Since we are only dealing with influence, all we need are the
+# x-fields.
+print("Constructing an instance of ``system.Model``.\n")
+system_model = system.Model(x_fields=[0.5])
+
+# Need to construct a ``bath.Model`` object that encodes both y- and z-noise.
+print("Constructing an instance of ``bath.Model`` with y- and z-noise.\n")
+
+def A_v_r_0T_s_func_form(omega, lambda_v_s, omega_v_s_c):
+    return lambda_v_s * omega * np.exp(-omega / omega_v_s_c)
+
+alpha = 0.1
+lambda_z_1 = np.pi * alpha
+omega_z_1_c = 5
+
+A_z_r_0T_1 = \
+    bath.SpectralDensityCmpnt0T(func_form=A_v_r_0T_s_func_form,
+                                func_kwargs={"lambda_v_s": lambda_z_1,
+                                             "omega_v_s_c": omega_z_1_c},
+                                hard_cutoff_freq=40*omega_z_1_c,
+                                zero_pt_derivative=lambda_z_1)
+
+A_z_0_0T = bath.SpectralDensity0T(cmpnts=[A_z_r_0T_1])
+
+lambda_y_1 = 0.0
+omega_y_1_c = 1
+
+A_y_r_0T_1 = \
+    bath.SpectralDensityCmpnt0T(func_form=A_v_r_0T_s_func_form,
+                                func_kwargs={"lambda_v_s": lambda_y_1,
+                                             "omega_v_s_c": omega_y_1_c},
+                                hard_cutoff_freq=40*omega_y_1_c,
+                                zero_pt_derivative=lambda_y_1)
+
+A_y_0_0T = bath.SpectralDensity0T(cmpnts=[A_y_r_0T_1])
+
+L = 1
+beta = 100
+nmax = 2
+dt = 0.2
+t_f = nmax*dt
+memory = t_f
+
+bath_model_1 = bath.Model(L=L,
+                          beta=beta,
+                          memory=memory,
+                          z_coupling_energy_scales=[1.0],
+                          z_spectral_densities_0T=[A_z_0_0T])
+
+bath_model_2 = bath.Model(L=L,
+                          beta=beta,
+                          memory=memory,
+                          y_coupling_energy_scales=[1.0],
+                          z_coupling_energy_scales=[1.0],
+                          y_spectral_densities_0T=[A_y_0_0T],
+                          z_spectral_densities_0T=[A_z_0_0T])
+
+# Next, we need to specify the SVD truncation parameters.
+print("Constructing an instance of ``trunc.Params``.\n")
+
+trunc_params = trunc.Params(max_num_singular_values=128,
+                            max_trunc_err=1.0e-14)
+
+# Finally, we construct the ``_influence.path.Path`` object.
+print("Constructing instance of ``_influence.path.Path``:\n")
+
+r = 0
+influence_path_1 = _influence.path.Path(r,
+                                        system_model,
+                                        bath_model_1,
+                                        dt,
+                                        trunc_params)
+
+influence_path_2 = _influence.path.Path(r,
+                                        system_model,
+                                        bath_model_2,
+                                        dt,
+                                        trunc_params)
+
+total_two_point_influence = \
+    sbc._influence.twopt.Total(r, system_model, bath_model_2, dt)
+
+# Evaluate influence paths.
+n = 0
+print("Evolving from time step n={} to n={}.".format(n, n+1))
+influence_path_1.evolve(num_n_steps=1)
+influence_path_nodes_1 = (influence_path_1.Xi_I_1_1_nodes
+                          + influence_path_1.Xi_I_dashv_nodes)
+influence_path_2.evolve(num_n_steps=1)
+influence_path_nodes_2 = contract_y_dofs(influence_path_2)
+n += 1
+unformatted_msg = ("Evaluating both implementations of influence path for all "
+                   "j-paths and printing results for cases where disagreement "
+                   "is greater than {}:")
+tol = 1.0e-9
+print(unformatted_msg.format(tol))
+j_paths = product(range(0, 4), repeat=n+2)
+unformatted_msg = \
+    "    j-path: {}, : result #1: {}, result #2: {}, rel-diff: {}"
+for j_path in j_paths:
+    result_1 = eval_influence_path(influence_path_nodes_1, j_path)
+    result_2 = eval_influence_path(influence_path_nodes_2, j_path)
+    if (abs(result_1) == 0) and (abs(result_2) == 0):
+        rel_diff = 0
+    else:
+        if max(abs(result_1), abs(result_2)) < 1.0e-12:
+            denom = 1.0
+        else:
+            denom = (result_1 if abs(result_1) != 0
+                     else max(abs(result_1), abs(result_2)))
+        rel_diff = abs((result_1-result_2) / denom)
+    if rel_diff > 1.0e-9:
+        print(unformatted_msg.format(j_path, result_1, result_2, rel_diff))
+print()
+
+print("Evolving from time step n={} to n={}.".format(n, n+1))
+influence_path_1.evolve(num_n_steps=1)
+influence_path_nodes_1 = (influence_path_1.Xi_I_1_1_nodes
+                          + influence_path_1.Xi_I_dashv_nodes)
+influence_path_2.evolve(num_n_steps=1)
+influence_path_nodes_2 = contract_y_dofs(influence_path_2)
+n += 1
+unformatted_msg = ("Evaluating both implementations of influence path for all "
+                   "j-paths and printing results for cases where disagreement "
+                   "is greater than {}:")
+tol = 1.0e-9
+print(unformatted_msg.format(tol))
+j_paths = product(range(0, 4), repeat=n+2)
+unformatted_msg = \
+    "    j-path: {}, : result #1: {}, result #2: {}, rel-diff: {}"
+for j_path in j_paths:
+    result_1 = eval_influence_path(influence_path_nodes_1, j_path)
+    result_2 = eval_influence_path(influence_path_nodes_2, j_path)
+    if (abs(result_1) == 0) and (abs(result_2) == 0):
+        rel_diff = 0
+    else:
+        if max(abs(result_1), abs(result_2)) < 1.0e-12:
+            denom = 1.0
+        else:
+            denom = (result_1 if abs(result_1) != 0
+                     else max(abs(result_1), abs(result_2)))
+        rel_diff = abs((result_1-result_2) / denom)
+    if rel_diff > 1.0e-9:
+        print(unformatted_msg.format(j_path, result_1, result_2, rel_diff))
+
+
+
+# _influence.path.Path test #4.
+print("_influence.path.Path test #4")
+print("============================")
+
+# Need to construct a ``system.Model`` object, which specifies all the model,
+# parameters. Since we are only dealing with influence, all we need are the
+# x-fields.
+print("Constructing an instance of ``system.Model``.\n")
+system_model = system.Model(x_fields=[0.5])
+
+# Need to construct a ``bath.Model`` object that encodes both y- and z-noise.
+print("Constructing an instance of ``bath.Model`` with y- and z-noise.\n")
+
+def A_v_r_0T_s_func_form(omega, lambda_v_s, omega_v_s_c):
+    return lambda_v_s * omega * np.exp(-omega / omega_v_s_c)
+
+alpha = 0.1
+lambda_z_1 = np.pi * alpha
+omega_z_1_c = 5
+
+A_z_r_0T_1 = \
+    bath.SpectralDensityCmpnt0T(func_form=A_v_r_0T_s_func_form,
+                                func_kwargs={"lambda_v_s": lambda_z_1,
+                                             "omega_v_s_c": omega_z_1_c},
+                                hard_cutoff_freq=40*omega_z_1_c,
+                                zero_pt_derivative=lambda_z_1)
+
+A_z_0_0T = bath.SpectralDensity0T(cmpnts=[A_z_r_0T_1])
+
+lambda_y_1 = np.pi * alpha
+omega_y_1_c = 5
+
+A_y_r_0T_1 = \
+    bath.SpectralDensityCmpnt0T(func_form=A_v_r_0T_s_func_form,
+                                func_kwargs={"lambda_v_s": lambda_y_1,
+                                             "omega_v_s_c": omega_y_1_c},
+                                hard_cutoff_freq=40*omega_y_1_c,
+                                zero_pt_derivative=lambda_y_1)
+
+A_y_0_0T = bath.SpectralDensity0T(cmpnts=[A_y_r_0T_1])
+
+L = 1
+beta = 100
+nmax = 2
+dt = 0.2
+t_f = nmax*dt
+memory = t_f
+
+bath_model_1 = bath.Model(L=L,
+                          beta=beta,
+                          memory=memory,
+                          z_coupling_energy_scales=[1.0],
+                          z_spectral_densities_0T=[A_z_0_0T])
+
+bath_model_2 = bath.Model(L=L,
+                          beta=beta,
+                          memory=memory,
+                          y_coupling_energy_scales=[1.0],
+                          y_spectral_densities_0T=[A_y_0_0T])
+
+# Next, we need to specify the SVD truncation parameters.
+print("Constructing an instance of ``trunc.Params``.\n")
+
+trunc_params = trunc.Params(max_num_singular_values=128,
+                            max_trunc_err=1.0e-14)
+
+# Finally, we construct the ``_influence.path.Path`` object.
+print("Constructing instance of ``_influence.path.Path``:\n")
+
+r = 0
+influence_path_1 = _influence.path.Path(r,
+                                        system_model,
+                                        bath_model_1,
+                                        dt,
+                                        trunc_params)
+
+influence_path_2 = _influence.path.Path(r,
+                                        system_model,
+                                        bath_model_2,
+                                        dt,
+                                        trunc_params)
+
+total_two_point_influence = \
+    sbc._influence.twopt.Total(r, system_model, bath_model_2, dt)
+
+# Evaluate influence paths.
+n = 0
+print("Evolving from time step n={} to n={}.".format(n, n+1))
+influence_path_1.evolve(num_n_steps=1)
+influence_path_nodes_1 = (influence_path_1.Xi_I_1_1_nodes
+                          + influence_path_1.Xi_I_dashv_nodes)
+influence_path_2.evolve(num_n_steps=1)
+influence_path_nodes_2 = contract_y_dofs(influence_path_2)
+n += 1
+unformatted_msg = ("Evaluating both implementations of influence path for all "
+                   "j-paths and printing results for cases where disagreement "
+                   "is greater than {}:")
+print("Evaluating both implementations of system's reduced density matrix:")
+unformatted_msg = \
+    "    j: {}, : result #1: {}, result #2: {}, rel-diff: {}"
+for j in range(4):
+    result_1 = eval_reduced_density_matrix(influence_path_nodes_1, j)
+    result_2 = eval_reduced_density_matrix(influence_path_nodes_2, j)
+    if (abs(result_1) == 0) and (abs(result_2) == 0):
+        rel_diff = 0
+    else:
+        if max(abs(result_1), abs(result_2)) < 1.0e-12:
+            denom = 1.0
+        else:
+            denom = (result_1 if abs(result_1) != 0
+                     else max(abs(result_1), abs(result_2)))
+        rel_diff = abs((result_1-result_2) / denom)
+    print(unformatted_msg.format(j, result_1, result_2, rel_diff))
+print()
+
+print("Evolving from time step n={} to n={}.".format(n, n+1))
+influence_path_1.evolve(num_n_steps=1)
+influence_path_nodes_1 = (influence_path_1.Xi_I_1_1_nodes
+                          + influence_path_1.Xi_I_dashv_nodes)
+influence_path_2.evolve(num_n_steps=1)
+influence_path_nodes_2 = contract_y_dofs(influence_path_2)
+n += 1
+print("Evaluating both implementations of system's reduced density matrix:")
+unformatted_msg = \
+    "    j: {}, : result #1: {}, result #2: {}, rel-diff: {}"
+for j in range(4):
+    result_1 = eval_reduced_density_matrix(influence_path_nodes_1, j)
+    result_2 = eval_reduced_density_matrix(influence_path_nodes_2, j)
+    if (abs(result_1) == 0) and (abs(result_2) == 0):
+        rel_diff = 0
+    else:
+        if max(abs(result_1), abs(result_2)) < 1.0e-12:
+            denom = 1.0
+        else:
+            denom = (result_1 if abs(result_1) != 0
+                     else max(abs(result_1), abs(result_2)))
+        rel_diff = abs((result_1-result_2) / denom)
+    print(unformatted_msg.format(j, result_1, result_2, rel_diff))
