@@ -58,6 +58,7 @@ class Eta():
             else:
                 self.A_v_r_T = bath_model.z_spectral_densities[r]
         self.dt = dt
+        self.min_limit = 2000  # Smallest `limit` used in `quad` in this module.
 
         return None
 
@@ -132,13 +133,15 @@ class Eta():
         pi = np.pi
 
         def summand(omega, m):
-            return ((-1)**m * omega**(2*m-2) / factorial(2*m)
-                    * (W_vars[0]**(2*m) + W_vars[1]**(2*m)
-                       - W_vars[2]**(2*m) - W_vars[3]**(2*m)))
+            return ((-1)**m / factorial(2*m)
+                    * (W_vars[0]**2 * (omega*W_vars[0])**(2*m-2)
+                       + W_vars[1]**2 * (omega*W_vars[1])**(2*m-2)
+                       - W_vars[2]**2 * (omega*W_vars[2])**(2*m-2)
+                       - W_vars[3]**2 * (omega*W_vars[3])**(2*m-2)))
         
         def F(omega):
             if abs(omega * W_var_max) < 1.0e-3:
-                return sum([summand(omega, m) for m in range(1, 4)])
+                return sum([summand(omega, m) for m in range(1, 5)])
             else:
                 return ((np.cos(W_vars[0]*omega) + np.cos(W_vars[1]*omega)
                          - np.cos(W_vars[2]*omega) - np.cos(W_vars[3]*omega))
@@ -148,7 +151,7 @@ class Eta():
         pt2 = self.integration_pts[a+1]
         integrand = lambda omega: (A_v_r_T_cmpnt._eval(omega)
                                    * F(omega) / 2.0 / pi)
-        result = quad(integrand, a=pt1, b=pt2, limit=2000)[0]
+        result = quad(integrand, a=pt1, b=pt2, limit=self.min_limit)[0]
 
         return result
             
@@ -164,10 +167,10 @@ class Eta():
         integrand = lambda omega: (sign_prefactor * A_v_r_T_cmpnt._eval(omega)
                                    / omega / omega / 2.0 / pi)
         if W_var == 0:
-            result = quad(integrand, a=pt1, b=pt2, limit=2000)[0]
+            result = quad(integrand, a=pt1, b=pt2, limit=self.min_limit)[0]
         else:
             result = quad(integrand, a=pt1, b=pt2, weight="cos", wvar=W_var,
-                          limit=2000*int(abs((pt2-pt1)/pt1)+1))[0]
+                          limit=self.min_limit*int(abs((pt2-pt1)/pt1)+1))[0]
 
         return result
 
@@ -183,13 +186,15 @@ class Eta():
         pi = np.pi
 
         def summand(omega, m):
-            return ((-1)**m * omega**(2*m-1) / factorial(2*m+1)
-                    * (W_vars[0]**(2*m+1) + W_vars[1]**(2*m+1)
-                       - W_vars[2]**(2*m+1) - W_vars[3]**(2*m+1)))
+            return ((-1)**m / factorial(2*m+1)
+                    * (W_vars[0]**2 * (omega*W_vars[0])**(2*m-1)
+                       + W_vars[1]**2 * (omega*W_vars[1])**(2*m-1)
+                       - W_vars[2]**2 * (omega*W_vars[2])**(2*m-1)
+                       - W_vars[3]**2 * (omega*W_vars[3])**(2*m-1)))
         
         def F(omega):
             if abs(omega * W_var_max) < 1.0e-3:
-                return -sum([summand(omega, m) for m in range(1, 4)])
+                return -sum([summand(omega, m) for m in range(1, 5)])
             else:
                 return ((-np.sin(W_vars[0]*omega) - np.sin(W_vars[1]*omega)
                          + np.sin(W_vars[2]*omega) + np.sin(W_vars[3]*omega))
@@ -199,7 +204,7 @@ class Eta():
         pt2 = self.integration_pts[a+1]
         integrand = lambda omega: (A_v_r_T_cmpnt._eval(omega)
                                    * F(omega) / 2.0 / pi)
-        result = quad(integrand, a=pt1, b=pt2, limit=2000)[0]
+        result = quad(integrand, a=pt1, b=pt2, limit=self.min_limit)[0]
 
         return result
             
@@ -220,6 +225,6 @@ class Eta():
         integrand = lambda omega: (sign_prefactor * A_v_r_T_cmpnt._eval(omega)
                                    / omega / omega / 2.0 / pi)
         result = quad(integrand, a=pt1, b=pt2, weight="sin", wvar=W_var,
-                      limit=2000*int(abs((pt2-pt1)/pt1)+1))[0]
+                      limit=self.min_limit*int(abs((pt2-pt1)/pt1)+1))[0]
 
         return result

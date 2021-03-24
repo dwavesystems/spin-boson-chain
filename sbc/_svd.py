@@ -41,7 +41,7 @@ def _left_to_right_svd_sweep_across_mps(mps_nodes, trunc_params=None):
     num_mps_nodes = len(mps_nodes)
     if num_mps_nodes == 1:
         return truncated_schmidt_spectrum
-    
+
     for i in range(num_mps_nodes-1):
         node_i = mps_nodes[i]
 
@@ -78,7 +78,7 @@ def _right_to_left_svd_sweep_across_mps(mps_nodes, trunc_params=None):
     num_mps_nodes = len(mps_nodes)
     if num_mps_nodes == 1:
         return truncated_schmidt_spectrum
-        
+
     for i in range(num_mps_nodes-1, 0, -1):
         node_i = mps_nodes[i]
         

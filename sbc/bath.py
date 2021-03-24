@@ -174,7 +174,8 @@ __all__ = ["SpectralDensity",
            "SpectralDensityCmpnt",
            "SpectralDensityCmpnt0T",
            "Model",
-           "noise_strength"]
+           "noise_strength",
+           "correlation"]
 
 
 
@@ -499,7 +500,7 @@ class SpectralDensityCmpnt():
                       * (self.limit_0T._eval(abs_omega) / beta_omega)
                       * (1.0 + beta_omega/2.0
                          + (beta_omega**2)/12.0 - (beta_omega**4) / 720.0))
-        elif beta_omega <= 1.0e-3:
+        elif beta_omega <= -1.0e-3:
             result = -(np.exp(beta_omega) * self.limit_0T._eval(abs_omega)
                        / (np.exp(beta_omega) - 1.0))
         else:
@@ -942,7 +943,7 @@ def noise_strength(spectral_density):
     For background information on spectral densities, see the documentation for
     the module :mod:`sbc.bath`. 
 
-    For a given source of noise, characterized by the spectral density of
+    For a given source of noise, described by the spectral density of
     noise :math:`A_{\nu;r;T}(\omega)` at temperature :math:`T`, we can
     characterize the strength of this noise by calculating:
 
@@ -989,3 +990,59 @@ def noise_strength(spectral_density):
 
     return W
     
+
+
+def correlation(t, spectral_density):
+    r"""Evaluate the bath correlation function at a given time.
+
+    For background information on bath correlation functions, see the 
+    documentation for the module :mod:`sbc.bath`. 
+
+    The bath correlation function is evaluated at time ``t`` by calculating
+    numerically the inverse Fourier transform of the corresponding spectral
+    density of the noise ``spectral_density``.
+
+    Parameters
+    ----------
+    t : `float`
+        The time at which to evaluate the bath correlation function.
+    spectral_density : :class:`sbc.bath.SpectralDensity` | :class:`sbc.bath.SpectralDensityCmpnt` | :class:`sbc.bath.SpectralDensity0T` | :class:`sbc.bath.SpectralDensityCmpnt0T`
+        The spectral density of noise that is the Fourier transform of the bath
+        correlation function of interest.
+
+    Returns
+    -------
+    result : `float`
+        The value of the bath correlation function at time ``t``.
+    """
+    integrand = lambda omega: spectral_density.eval(omega) / 2.0 / np.pi
+
+    if isinstance(spectral_density, SpectralDensity):
+        freq_cutoffs = [spectral_density_cmpnt.limit_0T.hard_cutoff_freq
+                        for spectral_density_cmpnt in spectral_density.cmpnts]
+        max_freq_cutoff = max(freq_cutoffs)
+        pts = (-max_freq_cutoff, 0, max_freq_cutoff)
+    elif isinstance(spectral_density, SpectralDensityCmpnt):
+        max_freq_cutoff = spectral_density.limit_0T.hard_cutoff_freq
+        pts = (-max_freq_cutoff, 0, max_freq_cutoff)
+    elif isinstance(spectral_density, SpectralDensity0T):
+        freq_cutoffs = [spectral_density_cmpnt.hard_cutoff_freq
+                        for spectral_density_cmpnt in spectral_density.cmpnts]
+        max_freq_cutoff = max(freq_cutoffs)
+        pts = (0, 0, max_freq_cutoff)
+    elif isinstance(spectral_density, SpectralDensityCmpnt0T):
+        max_freq_cutoff = spectral_density.hard_cutoff_freq
+        pts = (0, 0, max_freq_cutoff)
+
+    limit = 2000 * max(int(max_freq_cutoff * t), 1)
+
+    result = quad(integrand, a=pts[0], b=pts[1],
+                  limit=limit, weight="cos", wvar=t)[0]
+    result += quad(integrand, a=pts[1], b=pts[2],
+                   limit=limit, weight="cos", wvar=t)[0]
+    result -= 1j*quad(integrand, a=pts[0], b=pts[1],
+                      limit=limit, weight="sin", wvar=t)[0]
+    result -= 1j*quad(integrand, a=pts[1], b=pts[2],
+                      limit=limit, weight="sin", wvar=t)[0]
+
+    return result
