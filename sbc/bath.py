@@ -477,35 +477,35 @@ class SpectralDensityCmpnt():
             The value of :math:`A_{\nu;r;T;\varsigma}(\omega)` at frequency 
             ``omega``.
         """
-        if np.abs(omega) > self.limit_0T.hard_cutoff_freq:
-            result = 0.0
-        else:
+        if self.limit_0T.ir_cutoff <= np.abs(omega) <= self.limit_0T.uv_cutoff:
             result = self._eval(omega)
+        else:
+            result = 0
 
         return result
 
 
 
     def _eval(self, omega):
-        abs_omega = np.abs(omega)
-        beta_omega = self.beta * omega
-
         # See Appendix D.2 of detailed manuscript on our QUAPI-TN approach for
         # the rational behind the following implementation. In particular, see
         # the discussion starting just above Eq. (636) to Eq. (641).
         if omega == 0.0:
             result = self.limit_0T.zero_pt_derivative / self.beta
-        elif 0 < abs_omega * self.beta < 1.0e-3:
-            result = (np.sign(omega)
-                      * (self.limit_0T._eval(abs_omega) / beta_omega)
-                      * (1.0 + beta_omega/2.0
-                         + (beta_omega**2)/12.0 - (beta_omega**4) / 720.0))
-        elif beta_omega <= -1.0e-3:
-            result = -(np.exp(beta_omega) * self.limit_0T._eval(abs_omega)
-                       / (np.exp(beta_omega) - 1.0))
         else:
-            result = (self.limit_0T._eval(abs_omega)
-                      / (1.0 - np.exp(-beta_omega)))
+            abs_omega = np.abs(omega)
+            beta_omega = self.beta * omega
+            if 0 < abs_omega * self.beta < 1.0e-3:
+                result = (np.sign(omega)
+                          * (self.limit_0T._eval(abs_omega) / beta_omega)
+                          * (1.0 + beta_omega/2.0
+                             + (beta_omega**2)/12.0 - (beta_omega**4) / 720.0))
+            elif beta_omega <= -1.0e-3:
+                result = -(np.exp(beta_omega) * self.limit_0T._eval(abs_omega)
+                           / (np.exp(beta_omega) - 1.0))
+            else:
+                result = (self.limit_0T._eval(abs_omega)
+                          / (1.0 - np.exp(-beta_omega)))
 
         return result
 
@@ -569,13 +569,16 @@ class SpectralDensityCmpnt0T():
         A dictionary specifying specific values of the keyword arguments of
         ``func_form``. If there are no keyword arguments, then an empty
         dictionary should be passed.
-    hard_cutoff_freq : `float`
-        A hard cutoff frequency. For frequencies ``omega`` satisfying
-        ``omega >= hard_cutoff_freq``, :math:`A_{\nu;r;T=0;\varsigma}(\omega)`
-        evaluates to zero. ``hard_cutoff_freq`` should be chosen such that for
-        any frequencies higher than ``hard_cutoff_freq``, the function
-        ``func_form`` evaluates to a negligibly small number. 
-        ``hard_cutoff_freq`` is expected to be positive.
+    uv_cutoff : `float`
+        A hard ultraviolet cutoff frequency. For frequencies ``omega`` 
+        satisfying ``omega > uv_cutoff``, 
+        :math:`A_{\nu;r;T=0;\varsigma}(\omega)` evaluates to zero. 
+        ``uv_cutoff`` is expected to be positive.
+    ir_cutoff : `float`, optional
+        A hard infrared cutoff frequency. For frequencies ``omega`` 
+        satisfying ``omega < ir_cutoff``, 
+        :math:`A_{\nu;r;T=0;\varsigma}(\omega)` evaluates to zero. 
+        ``ir_cutoff`` is expected to be positive.
     zero_pt_derivative : `float` | `None`, optional
         The limit of the derivative of :math:`A_{\nu;r;T=0;\varsigma}(\omega)` 
         as :math:`\omega` approaches zero from the right. If 
@@ -593,10 +596,14 @@ class SpectralDensityCmpnt0T():
     func_kwargs : `dict`, read-only
         A dictionary specifying specific values of the keyword arguments of
         ``func_form``.
-    hard_cutoff_freq : `float`, read-only
-        A hard cutoff frequency. For frequencies ``omega`` satisfying
-        ``omega >= hard_cutoff_freq``, :math:`A_{\nu;r;T=0;\varsigma}(\omega)`
-        evaluates to zero.
+    uv_cutoff : `float`, read-only
+        A hard ultraviolet cutoff frequency. For frequencies ``omega`` 
+        satisfying ``omega > uv_cutoff``, 
+        :math:`A_{\nu;r;T=0;\varsigma}(\omega)` evaluates to zero. 
+    ir_cutoff : `float`, read-only
+        A hard infrared cutoff frequency. For frequencies ``omega`` 
+        satisfying ``omega < ir_cutoff``, 
+        :math:`A_{\nu;r;T=0;\varsigma}(\omega)` evaluates to zero. 
     zero_pt_derivative : `float`, read-only
         The limit of the derivative of :math:`A_{\nu;r;T=0;\varsigma}(\omega)` 
         as :math:`\omega` approaches zero from the right. 
@@ -604,11 +611,15 @@ class SpectralDensityCmpnt0T():
     def __init__(self,
                  func_form,
                  func_kwargs,
-                 hard_cutoff_freq,
+                 uv_cutoff,
+                 ir_cutoff=0,
                  zero_pt_derivative=None):
-        omega = 0
+        # uv_cutoff should always be greater than or equal to ir_cutoff.
+        self.uv_cutoff = abs(uv_cutoff)
+        self.ir_cutoff = min(abs(ir_cutoff), self.uv_cutoff)
         
         try:
+            omega = 0.5 * (self.ir_cutoff + self.uv_cutoff)
             func_form(omega, **func_kwargs)  # Check TypeErrors.
         except:
             raise TypeError("The given dictionary `func_kwargs` that is "
@@ -620,7 +631,6 @@ class SpectralDensityCmpnt0T():
         
         self.func_form = func_form
         self.func_kwargs = copy.deepcopy(func_kwargs)
-        self.hard_cutoff_freq = abs(hard_cutoff_freq)
 
         self.zero_pt_derivative = zero_pt_derivative
         if zero_pt_derivative == None:
@@ -645,9 +655,10 @@ class SpectralDensityCmpnt0T():
             The value of :math:`A_{\nu;r;T=0;\varsigma}(\omega)` at frequency 
             ``omega``.
         """
-        result = self._eval(omega)
-        result *= np.heaviside(self.hard_cutoff_freq - omega, 0)
-        result *= np.heaviside(omega, 0)
+        if self.ir_cutoff <= omega <= self.uv_cutoff:
+            result = self._eval(omega)
+        else:
+            result = 0
 
         return result
 
@@ -669,13 +680,16 @@ class SpectralDensityCmpnt0T():
             co_code_2 = obj._func_form.__code__.co_code
             func_kwargs_1 = self._func_kwargs
             func_kwargs_2 = obj._func_kwargs
-            hard_cutoff_freq_1 = self.hard_cutoff_freq
-            hard_cutoff_freq_2 = obj.hard_cutoff_freq
+            uv_cutoff_1 = self.uv_cutoff
+            uv_cutoff_2 = obj.uv_cutoff
+            ir_cutoff_1 = self.ir_cutoff
+            ir_cutoff_2 = obj.ir_cutoff
             zero_pt_derivative_1 = self.zero_pt_derivative
             zero_pt_derivative_2 = obj.zero_pt_derivative
             if ((co_code_1 == co_code_2)
                 and (func_kwargs_1 == func_kwargs_2)
-                and (hard_cutoff_freq_1 == hard_cutoff_freq_2)
+                and (uv_cutoff_1 == uv_cutoff_2)
+                and (ir_cutoff_1 == ir_cutoff_2)
                 and (zero_pt_derivative_1 == zero_pt_derivative_2)):
                 result = True
             else:
@@ -691,10 +705,11 @@ class SpectralDensityCmpnt0T():
         # dictionaries.
         func_form_co_code = self._func_form.__code__.co_code  # Bytecode.
         func_kwargs_in_tuple_form = tuple(sorted(self._func_kwargs.items()))
-        hard_cutoff_freq = self.hard_cutoff_freq
+        uv_cutoff = self.uv_cutoff
+        ir_cutoff = self.ir_cutoff
         zero_pt_derivative = self.zero_pt_derivative
         tuple_to_hash = (func_form_co_code, func_kwargs_in_tuple_form,
-                         hard_cutoff_freq, zero_pt_derivative)
+                         uv_cutoff, ir_cutoff, zero_pt_derivative)
         result = hash(tuple_to_hash)
 
         return result
@@ -705,7 +720,7 @@ class SpectralDensityCmpnt0T():
 _trivial_spectral_density_cmpnt_0T = \
     SpectralDensityCmpnt0T(func_form=lambda omega: 0.0,
                            func_kwargs={},
-                           hard_cutoff_freq=1.0e-10,
+                           uv_cutoff=1.0e-10,
                            zero_pt_derivative=0.0)
 _trivial_spectral_density_0T = \
     SpectralDensity0T(cmpnts=[_trivial_spectral_density_cmpnt_0T])
@@ -965,31 +980,18 @@ def noise_strength(spectral_density):
         The strength of the noise :math:`W`.
     """
     integrand = lambda omega: spectral_density.eval(omega) / 2.0 / np.pi
+    pts = _get_integration_pts(spectral_density)
     limit = 10000
 
-    if isinstance(spectral_density, SpectralDensity):
-        freq_cutoffs = [spectral_density_cmpnt.limit_0T.hard_cutoff_freq
-                        for spectral_density_cmpnt in spectral_density.cmpnts]
-        max_freq_cutoff = max(freq_cutoffs)
-        pts = (-max_freq_cutoff, 0, max_freq_cutoff)
-    elif isinstance(spectral_density, SpectralDensityCmpnt):
-        max_freq_cutoff = spectral_density.limit_0T.hard_cutoff_freq
-        pts = (-max_freq_cutoff, 0, max_freq_cutoff)
-    elif isinstance(spectral_density, SpectralDensity0T):
-        freq_cutoffs = [spectral_density_cmpnt.hard_cutoff_freq
-                        for spectral_density_cmpnt in spectral_density.cmpnts]
-        max_freq_cutoff = max(freq_cutoffs)
-        pts = (0, 0, max_freq_cutoff)
-    elif isinstance(spectral_density, SpectralDensityCmpnt0T):
-        max_freq_cutoff = spectral_density.hard_cutoff_freq
-        pts = (0, 0, max_freq_cutoff)
-    
-    W = quad(integrand, a=pts[0], b=pts[1], limit=limit)[0]
-    W += quad(integrand, a=pts[1], b=pts[2], limit=limit)[0]
+    # If zero temperature spectral density, the integrand is zero for all
+    # negative frequencies.
+    W = quad(integrand, a=pts[2], b=pts[3], limit=limit)[0]
+    if isinstance(spectral_density, (SpectralDensity, SpectralDensityCmpnt)):
+        W += quad(integrand, a=pts[0], b=pts[1], limit=limit)[0]
     W = np.sqrt(W)
 
     return W
-    
+
 
 
 def correlation(t, spectral_density):
@@ -1016,33 +1018,45 @@ def correlation(t, spectral_density):
         The value of the bath correlation function at time ``t``.
     """
     integrand = lambda omega: spectral_density.eval(omega) / 2.0 / np.pi
+    pts = _get_integration_pts(spectral_density)
+    limit = 2000 * max(int(max(pts) * t), 1)
 
-    if isinstance(spectral_density, SpectralDensity):
-        freq_cutoffs = [spectral_density_cmpnt.limit_0T.hard_cutoff_freq
-                        for spectral_density_cmpnt in spectral_density.cmpnts]
-        max_freq_cutoff = max(freq_cutoffs)
-        pts = (-max_freq_cutoff, 0, max_freq_cutoff)
-    elif isinstance(spectral_density, SpectralDensityCmpnt):
-        max_freq_cutoff = spectral_density.limit_0T.hard_cutoff_freq
-        pts = (-max_freq_cutoff, 0, max_freq_cutoff)
-    elif isinstance(spectral_density, SpectralDensity0T):
-        freq_cutoffs = [spectral_density_cmpnt.hard_cutoff_freq
-                        for spectral_density_cmpnt in spectral_density.cmpnts]
-        max_freq_cutoff = max(freq_cutoffs)
-        pts = (0, 0, max_freq_cutoff)
-    elif isinstance(spectral_density, SpectralDensityCmpnt0T):
-        max_freq_cutoff = spectral_density.hard_cutoff_freq
-        pts = (0, 0, max_freq_cutoff)
-
-    limit = 2000 * max(int(max_freq_cutoff * t), 1)
-
-    result = quad(integrand, a=pts[0], b=pts[1],
+    # If zero temperature spectral density, the integrand is zero for all
+    # negative frequencies.
+    result = quad(integrand, a=pts[2], b=pts[3],
                   limit=limit, weight="cos", wvar=t)[0]
-    result += quad(integrand, a=pts[1], b=pts[2],
-                   limit=limit, weight="cos", wvar=t)[0]
-    result -= 1j*quad(integrand, a=pts[0], b=pts[1],
+    result -= 1j*quad(integrand, a=pts[2], b=pts[3],
                       limit=limit, weight="sin", wvar=t)[0]
-    result -= 1j*quad(integrand, a=pts[1], b=pts[2],
+    if isinstance(spectral_density, (SpectralDensity, SpectralDensityCmpnt)):
+        result += quad(integrand, a=pts[0], b=pts[1],
+                       limit=limit, weight="cos", wvar=t)[0]
+        result -= 1j*quad(integrand, a=pts[0], b=pts[1],
                       limit=limit, weight="sin", wvar=t)[0]
 
     return result
+
+
+
+def _get_integration_pts(spectral_density):
+    if isinstance(spectral_density, SpectralDensity):
+        uv_cutoffs = [spectral_density_cmpnt.limit_0T.uv_cutoff
+                      for spectral_density_cmpnt in spectral_density.cmpnts]
+        ir_cutoffs = [spectral_density_cmpnt.limit_0T.ir_cutoff
+                      for spectral_density_cmpnt in spectral_density.cmpnts]
+    elif isinstance(spectral_density, SpectralDensityCmpnt):
+        uv_cutoffs = [spectral_density.limit_0T.uv_cutoff]
+        ir_cutoffs = [spectral_density.limit_0T.ir_cutoff]
+    elif isinstance(spectral_density, SpectralDensity0T):
+        uv_cutoffs = [spectral_density_cmpnt.uv_cutoff
+                      for spectral_density_cmpnt in spectral_density.cmpnts]
+        ir_cutoffs = [spectral_density_cmpnt.ir_cutoff
+                      for spectral_density_cmpnt in spectral_density.cmpnts]
+    elif isinstance(spectral_density, SpectralDensityCmpnt0T):
+        uv_cutoffs = [spectral_density.uv_cutoff]
+        ir_cutoffs = [spectral_density.ir_cutoff]
+
+    max_uv_cutoff = max(uv_cutoffs)
+    min_ir_cutoff = min(ir_cutoffs)
+    pts = (-max_uv_cutoff, -min_ir_cutoff, min_ir_cutoff, max_uv_cutoff)
+
+    return pts
