@@ -24,8 +24,8 @@ from sbc._influence.tensorfactory import InfluenceMPO
 from sbc._mpomps import _apply_mpo_to_mps
 
 # For performing SVD truncation sweeps.
-from sbc._svd import _left_to_right_svd_sweep_across_mps
-from sbc._svd import _right_to_left_svd_sweep_across_mps
+from sbc._svd import left_to_right_svd_sweep_across_mps
+from sbc._svd import right_to_left_svd_sweep_across_mps
 
 
 
@@ -111,8 +111,8 @@ class Path():
         node = self.influence_node_rank_3_factory.build(m2+1, n)
         mps_nodes.append(node)
 
-        _left_to_right_svd_sweep_across_mps(mps_nodes, self.trunc_params)
-        _right_to_left_svd_sweep_across_mps(mps_nodes, self.trunc_params)
+        left_to_right_svd_sweep_across_mps(mps_nodes, self.trunc_params)
+        right_to_left_svd_sweep_across_mps(mps_nodes, self.trunc_params)
 
         if m2 <= self.max_m2_in_first_iteration_procedure(n):
             if self.mu_m_tau(m=m2+2) >= 1:

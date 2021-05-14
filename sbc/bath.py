@@ -2,35 +2,47 @@
 r"""Contains class definitions for the model components of the bath.
 
 ``sbc`` is a library for simulating the dynamics of a generalized
-one-dimensional spin-boson model, where both the :math:`z`- and 
+one-dimensional spin-boson chain model, where both the :math:`z`- and 
 :math:`y`-components of the spins are coupled to bosonic baths, rather than 
-only the :math:`z`-components. The Hamiltonian of this model can be broken down
-into the following components:
+only the :math:`z`-components. A convenient way to discuss both finite and
+infinite chains is to express the Hamiltonian of the aforementioned spin-boson
+model as a sum of :math:`2N+1` 'unit cell' Hamiltonians:
 
 .. math ::
-    \hat{H}(t) = \hat{H}^{(A)}(t) + \hat{H}^{(B)} + \hat{H}^{(AB)}(t),
+    \hat{H}\left(t\right)\equiv\sum_{u=-N}^{N}\hat{H}_{u}\left(t\right),
     :label: bath_total_Hamiltonian
 
-where :math:`\hat{H}^{(A)}(t)` is the system Hamiltonian, which encodes all
-information regarding energies associated exclusively with the spins; 
-:math:`\hat{H}^{(B)}` is the bath Hamiltonian, which encodes all information
-regarding energies associated with the components of the bosonic environment; 
-and :math:`\hat{H}^{(AB)}(t)` is the system-bath coupling Hamiltonian, which 
-describes all energies associated with the coupling between the system and the 
-environment.
-
-The bath Hamiltonian :math:`\hat{H}^{(B)}` describes a collection of decoupled
-harmonic oscillators:
+where :math:`N` is a non-negative integer, and :math:`\hat{H}_{u}\left(t\right)`
+is the Hamiltonian of the :math:`u^{\mathrm{th}}` 'unit cell' of the model:
 
 .. math ::
-    \hat{H}^{(B)} = \sum_{r=0}^{L-1}\sum_{\epsilon} 
-    \left\{\omega_{y; \epsilon} \hat{b}_{y; r; \epsilon}^{\dagger} 
-    \hat{b}_{y; r; \epsilon}^{\vphantom{\dagger}}
-    + \omega_{z; \epsilon} \hat{b}_{z; r; \epsilon}^{\dagger} 
-    \hat{b}_{z; r; \epsilon}^{\vphantom{\dagger}}\right\},
+    \hat{H}_{u}\left(t\right)=\hat{H}_{u}^{\left(A\right)}\left(t\right)
+    +\hat{H}_{u}^{\left(B\right)}+\hat{H}_{u}^{\left(AB\right)},
+    :label: bath_unit_cell_Hamiltonian
+
+with :math:`\hat{H}_{u}^{\left(A\right)}\left(t\right)` being the system part of
+:math:`\hat{H}_{u}\left(t\right)`, which encodes all information regarding
+energies associated exclusively with the spins;
+:math:`\hat{H}_{u}^{\left(B\right)}` being the bath part of
+:math:`\hat{H}_{u}\left(t\right)`, which encodes all information regarding
+energies associated with the components of the bosonic environment; and
+:math:`\hat{H}_{u}^{\left(AB\right)}` is the system-bath coupling part of
+:math:`\hat{H}_{u}\left(t\right)`, which describes all energies associated with
+the coupling between the system and the environment.
+
+:math:`\hat{H}_{u}^{\left(B\right)}` describes a collection of decoupled harmonic 
+oscillators:
+
+.. math ::
+    \hat{H}_{u}^{\left(B\right)}=\sum_{r=0}^{L-1}\sum_{\epsilon}
+    \left\{ \omega_{y;\epsilon}\hat{b}_{y;r+uL;\epsilon}^{\dagger}
+    \hat{b}_{y;r+uL;\epsilon}^{\vphantom{\dagger}}
+    +\omega_{z;\epsilon}\hat{b}_{z;r+uL;\epsilon}^{\dagger}
+    \hat{b}_{z;r+uL;\epsilon}^{\vphantom{\dagger}}\right\},
     :label: bath_bath_hamiltonian
 
-with :math:`\epsilon` being the oscillator mode index, 
+with :math:`\epsilon` being the oscillator mode index, :math:`L` being
+the number of sites in every 'unit cell', and
 :math:`\hat{b}_{\nu; r; \epsilon}^{\dagger}` and
 :math:`\hat{b}_{\nu; r; \epsilon}^{\vphantom{\dagger}}` being the bosonic
 creation and annihilation operators respectively for the harmonic oscillator at
@@ -38,35 +50,39 @@ site :math:`r` in mode :math:`\epsilon` with angular frequency
 :math:`\omega_{\nu; \epsilon}`, coupled to the :math:`\nu`-component of the spin
 at the same site.
 
-The system-bath coupling Hamiltonian :math:`\hat{H}^{(AB)}(t)` is given by
+:math:`\hat{H}_{u}^{\left(AB\right)}\left(t\right)` is given by
 
 .. math ::
-    \hat{H}^{(AB)}(t)=-\sum_{r=0}^{L-1}\left\{
-    \hat{\sigma}_{y;r}\hat{\mathcal{Q}}_{y;r}(t)
-    + \hat{\sigma}_{z;r}\hat{\mathcal{Q}}_{z;r}(t)\right\},
+    \hat{H}_{u}^{\left(AB\right)}=-\sum_{r=0}^{L-1}
+    \left\{ \hat{\sigma}_{y;r+uL}\hat{\mathcal{Q}}_{y;r+uL}
+    \left(t\right)+\hat{\sigma}_{z;r+uL}
+    \hat{\mathcal{Q}}_{z;r+uL}\left(t\right)\right\},
     :label: bath_system_bath_hamiltonian
 
-where :math:`\hat{\mathcal{Q}}_{\nu;r}(t)` is the generalized
-reservoir force operator at site :math:`r` that acts on the 
-:math:`\nu`-component of the spin at the same site:
+where :math:`\hat{\mathcal{Q}}_{\nu;r}(t)` is the generalized reservoir force 
+operator at site :math:`r` that acts on the :math:`\nu`-component of the spin at
+the same site:
 
 .. math ::
-    \hat{\mathcal{Q}}_{\nu;r}(t)=\mathcal{E}_{\nu;r}^{(\lambda)}(t)
-    \hat{Q}_{\nu;r},
+    \hat{\mathcal{Q}}_{\nu;r+uL}\left(t\right)
+    =\mathcal{E}_{\nu;r}^{\left(\lambda\right)}\left(t\right)\hat{Q}_{\nu;r+uL},
     :label: bath_generalized_reservoir_force
 
 with :math:`\mathcal{E}_{\nu;r}^{(\lambda)}(t)` being a time-dependent energy
 scale, :math:`\hat{Q}_{\nu;r}` being a rescaled generalized reservoir force:
 
 .. math ::
-    \hat{Q}_{\nu;r}=-\sum_{\epsilon}\lambda_{\nu;r;\epsilon}
-    \left\{ \hat{b}_{\nu;r;\epsilon}^{\dagger}
-    +\hat{b}_{\nu;r;\epsilon}^{\vphantom{\dagger}}\right\},
+    \hat{Q}_{\nu;r+uL}=-\sum_{\epsilon}\lambda_{\nu;r;\epsilon}
+    \left\{ \hat{b}_{\nu;r+uL;\epsilon}^{\dagger}
+    +\hat{b}_{\nu;r+uL;\epsilon}^{\vphantom{\dagger}}\right\},
     :label: bath_rescaled_generalized_reservoir_force
 
 :math:`\lambda_{\nu;r;\epsilon}` being the coupling strength between the
 :math:`\nu`-component of the spin at site :math:`r` and the harmonic oscillator 
 at the same site in mode :math:`\epsilon`. 
+
+For finite chains, we set :math:`N=0`, whereas for infinite chains, we take the 
+limit of :math:`N\to\infty`.
 
 Rather than specify the bath model parameters :math:`\omega_{\nu; \epsilon}` and
 :math:`\lambda_{\nu;r;\epsilon}`, one can alternatively specify the spectral
@@ -622,12 +638,7 @@ class SpectralDensityCmpnt0T():
             omega = 0.5 * (self.ir_cutoff + self.uv_cutoff)
             func_form(omega, **func_kwargs)  # Check TypeErrors.
         except:
-            raise TypeError("The given dictionary `func_kwargs` that is "
-                            "suppose to specify the keyword arguments of the "
-                            "given function `func_form`, used to construct an "
-                            "instance of the "
-                            "`sbc.bath.SpectralDensityCmpnt0T` class, "
-                            "is not compatible with `func_form`.")
+            raise TypeError(_spectral_density_cmpnt_0T_init_err_msg_1)
         
         self.func_form = func_form
         self.func_kwargs = copy.deepcopy(func_kwargs)
@@ -733,13 +744,15 @@ class Model():
     r"""The bath's model components.
 
     For background information on system-bath coupling energy scales,
-    spectral densities, and system memory, see the documentation for the module
-    :mod:`sbc.bath`, and the class :class:`sbc.bath.SpectralDensity`. 
+    spectral densities, system memory, and unit cells, see the documentation for
+    the module :mod:`sbc.bath`, and the class :class:`sbc.bath.SpectralDensity`.
 
     Parameters
     ----------
     L : `int`
-        The number of spin sites.
+        The number of spin sites in every unit cell. Note that in the case of a 
+        finite chain there is only one unit cell, whereas for an infinite chain 
+        there is an arbitrarily large number of unit cells.
     beta : `float`
         The inverse temperature, :math:`\beta=1/(k_B T)`, with :math:`k_B` 
         being the Boltzmann constant and :math:`T` being the temperature.
@@ -796,7 +809,7 @@ class Model():
     Attributes
     ----------
     L : `int`, read-only
-        The number of spin sites.
+        The number of spin sites in every unit cell.
     memory : `float`, read-only
         The bath correlation time, also known as the system's memory 
         :math:`\tau`.
@@ -884,13 +897,7 @@ class Model():
         if len(candidate_Ls) != 0:
             L = candidate_Ls.pop()
             if (L != self.L) or (len(candidate_Ls) != 0):
-                raise IndexError("One or more of the following parameters: "
-                                 "``y_coupling_energy_scales``, "
-                                 "``z_coupling_energy_scales``, "
-                                 "``y_spectral_densities_0T``, "
-                                 "``z_spectral_densities_0T``, are of "
-                                 "dimensions incompatible with the parameter "
-                                 "``L``.")
+                raise IndexError(_model_check_partial_ctor_param_list_err_msg_1)
 
         return None
 
@@ -1060,3 +1067,17 @@ def _get_integration_pts(spectral_density):
     pts = (-max_uv_cutoff, -min_ir_cutoff, min_ir_cutoff, max_uv_cutoff)
 
     return pts
+
+
+
+_spectral_density_cmpnt_0T_init_err_msg_1 = \
+    ("The given dictionary `func_kwargs` that is suppose to specify the "
+     "keyword arguments of the given function `func_form`, used to construct "
+     "an instance of the `sbc.bath.SpectralDensityCmpnt0T` class, is not "
+     "compatible with `func_form`.")
+
+_model_check_partial_ctor_param_list_err_msg_1 = \
+    ("One or more of the following parameters: ``y_coupling_energy_scales``, "
+     "``z_coupling_energy_scales``, ``y_spectral_densities_0T``, "
+     "``z_spectral_densities_0T``, are of dimensions incompatible with the "
+     "parameter ``L``.")

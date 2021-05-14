@@ -2,7 +2,7 @@ Spin-Boson Chain (sbc)
 ======================
 
 ``sbc`` (short for 'Spin-Boson Chain') is a Python library for simulating the
-dynamics of a generalized one-dimensional spin-boson model, where both
+dynamics of a generalized one-dimensional spin-boson chain model, where both
 the :math:`z`- and :math:`y`-components of the spins are coupled to bosonic
 baths, rather than only the :math:`z`-components. The library adopts the
 quasi-adiabatic path integral (QUAPI) formalism to express the spin system's

@@ -35,70 +35,72 @@ __status__ = "Non-Production"
 
 
 
-def _left_to_right_svd_sweep_across_mps(mps_nodes, trunc_params=None):
+def left_to_right_svd_sweep_across_mps(mps_nodes,
+                                       trunc_params=None,
+                                       is_infinite=False):
     truncated_schmidt_spectrum = []
         
     num_mps_nodes = len(mps_nodes)
-    if num_mps_nodes == 1:
-        return truncated_schmidt_spectrum
-
-    for i in range(num_mps_nodes-1):
+    for i in range(num_mps_nodes-1+int(is_infinite)):
         node_i = mps_nodes[i]
 
         # Switch to numpy backend (if numpy is not being used) so that SVD can
         # be performed on CPUs as it is currently faster than on GPUs.
         original_backend_name = node_i.backend.name
         if original_backend_name != "numpy":
-            _tf_to_np_backend(node_i)
+            tf_to_np_backend(node_i)
         
         left_edges = (node_i[0], node_i[1])
         right_edges = (node_i[2],)
 
-        U, S, V_dagger = _split_node_svd(node_i,
-                                         left_edges,
-                                         right_edges,
-                                         trunc_params,
-                                         original_backend_name)
+        U, S, V_dagger = split_node_full_svd(node_i,
+                                             left_edges,
+                                             right_edges,
+                                             trunc_params,
+                                             original_backend_name)
 
         truncated_schmidt_spectrum.append(S)
         mps_nodes[i] = U
 
-        node_iP1 = mps_nodes[i+1]
+        node_iP1 = mps_nodes[(i+1)%num_mps_nodes]
         nodes_to_contract = (S, V_dagger, node_iP1)
         network_struct = [(-1, 1), (1, 2), (2, -2, -3)]
-        mps_nodes[i+1] = tn.ncon(nodes_to_contract, network_struct)
+        mps_nodes[(i+1)%num_mps_nodes] = tn.ncon(nodes_to_contract,
+                                                 network_struct)
 
     return truncated_schmidt_spectrum
 
 
 
-def _right_to_left_svd_sweep_across_mps(mps_nodes, trunc_params=None):
+def right_to_left_svd_sweep_across_mps(mps_nodes,
+                                       trunc_params=None,
+                                       is_infinite=False):
     truncated_schmidt_spectrum = []
     
     num_mps_nodes = len(mps_nodes)
     if num_mps_nodes == 1:
         return truncated_schmidt_spectrum
 
-    for i in range(num_mps_nodes-1, 0, -1):
-        node_i = mps_nodes[i]
+    for i in range(num_mps_nodes-1+int(is_infinite), 0, -1):
+        node_i = mps_nodes[i%num_mps_nodes]
         
         # Switch to numpy backend (if numpy is not being used) so that SVD can
         # be performed on CPUs as it is currently faster than on GPUs.
         original_backend_name = node_i.backend.name
         if original_backend_name != "numpy":
-            _tf_to_np_backend(node_i)
+            tf_to_np_backend(node_i)
         
         left_edges = (node_i[0],)
         right_edges = (node_i[1], node_i[2])
 
-        U, S, V_dagger = _split_node_svd(node_i,
-                                         left_edges,
-                                         right_edges,
-                                         trunc_params,
-                                         original_backend_name)
+        U, S, V_dagger = split_node_full_svd(node_i,
+                                             left_edges,
+                                             right_edges,
+                                             trunc_params,
+                                             original_backend_name)
         
         truncated_schmidt_spectrum.insert(0, S)
-        mps_nodes[i] = V_dagger
+        mps_nodes[i%num_mps_nodes] = V_dagger
 
         node_iM1 = mps_nodes[i-1]
         nodes_to_contract = (node_iM1, U, S)
@@ -109,11 +111,11 @@ def _right_to_left_svd_sweep_across_mps(mps_nodes, trunc_params=None):
 
 
 
-def _split_node_svd(node,
-                    left_edges,
-                    right_edges,
-                    trunc_params,
-                    original_backend_name):
+def split_node_full_svd(node,
+                         left_edges,
+                         right_edges,
+                         trunc_params,
+                         original_backend_name):
     if trunc_params == None:
         max_num_singular_values = None
         max_trunc_err = None
@@ -145,15 +147,37 @@ def _split_node_svd(node,
 
     # Switch back to original backend (if different from numpy).
     if original_backend_name != "numpy":
-        _np_to_tf_backend(U)
-        _np_to_tf_backend(S)
-        _np_to_tf_backend(V_dagger)
+        np_to_tf_backend(U)
+        np_to_tf_backend(S)
+        np_to_tf_backend(V_dagger)
 
     return U, S, V_dagger
 
 
 
-def _tf_to_np_backend(node):
+def split_node(node, left_edges, right_edges):
+    # Switch to numpy backend (if numpy is not being used) so that SVD can be
+    # performed on CPUs as it is currently faster than on GPUs.
+    original_backend_name = node.backend.name
+    if original_backend_name != "numpy":
+        tf_to_np_backend(node)
+
+    # Node is split using SVD with no truncations.
+    left_node, right_node, _ = \
+        tn.split_node(node=node, left_edges=left_edges, right_edges=right_edges)
+
+    left_node[-1] | right_node[0]  # Break edge between the two nodes.
+
+    # Switch back to original backend (if different from numpy).
+    if original_backend_name != "numpy":
+        np_to_tf_backend(left_node)
+        np_to_tf_backend(right_node)
+
+    return left_node, right_node
+
+
+
+def tf_to_np_backend(node):
     node.backend = tn.backends.backend_factory.get_backend("numpy")
     node.tensor = node.tensor.numpy()  # Converts to numpy array.
 
@@ -161,7 +185,7 @@ def _tf_to_np_backend(node):
 
 
 
-def _np_to_tf_backend(node):
+def np_to_tf_backend(node):
     node.backend = tn.backends.backend_factory.get_backend("tensorflow")
     node.tensor = node.backend.convert_to_tensor(node.tensor)
 

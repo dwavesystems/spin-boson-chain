@@ -1,5 +1,28 @@
 #!/usr/bin/env python
 r"""For calculating the expectation values of certain observables.
+
+As discussed in the documentation for the function :func:`sbc.state.trace`, the
+trace of the system's reduced density matrix that is simulated is not 
+necessarily unity. This is due to the fact that the QUAPI algorithm used in the 
+``sbc`` library does not preserve the unitarity of the time evolution of the 
+system state. As a result, all calculations of expectation values in ``sbc``
+are normalized by the trace of the system's reduced density matrix, i.e.
+
+.. math ::
+    \left\langle\hat{O}^{\left(A\right)}\left(t\right)\right\rangle 
+    = \frac{\text{Tr}^{\left(A\right)}\left\{
+    \hat{\rho}^{\left(A\right)}\left(t\right)
+    \hat{O}^{\left(A\right)}\left(t\right)\right\}}
+    {\text{Tr}^{\left(A\right)}
+    \left\{\hat{\rho}^{\left(A\right)}\left(t\right)\right\}},
+    :label: ev_calculating_ev
+
+where :math:`\hat{O}^{\left(A\right)}\left(t\right)` is an operator in the
+Heisenberg picture defined on the system's Hilbert space, 
+:math:`\hat{\rho}^{\left(A\right)}\left(t\right)` is the system's reduced state
+operator at time :math:`t`, and 
+:math:`\text{Tr}^{\left(A\right)}\left\{ \cdots\right\}` is the partial trace
+with respect to the system degrees of freedom.
 """
 
 
@@ -49,9 +72,12 @@ __all__ = ["single_site_spin_op",
 
 def single_site_spin_op(op_string,
                         system_state,
-                        site_indices=None,
-                        normalize=False):
+                        site_indices=None):
     r"""Calculate the expectation value of a given single-site spin operator.
+
+    The documentation for this function makes reference to the concept of a 
+    'unit cell', which is introduced in the documentation for the module 
+    :mod:`sbc.system`.
 
     This function calculates the expectation value of a given single-site spin
     operator, as specified by the string ``op_string``, with respect to the 
@@ -74,16 +100,10 @@ def single_site_spin_op(op_string,
         The site indices corresponding to the sites at which to evaluate the
         expectation value of the single-site spin operator. If set to `None`,
         then ``site_indices`` is reset to ``range(system_state.L)``, i.e. the
-        expectation value is calculated at all spin sites.
-    normalize : `bool`, optional
-        Since the QUAPI algorithm does not preserve the unitarity of the time
-        evolution of the system state, the system state may not be properly
-        normalized, i.e. its trace may not be equal to 1. If ``normalize`` is to
-        ``True``, then the system state is renormalized such that its trace is
-        equal to 1, after which the exceptation value of the single-site spin
-        operator is calculated. Otherwise, the system is not renormalized. Note
-        that ``system_state`` is not actually modified in the renormalization
-        procedure.
+        expectation value is calculated at each spin site in the :math:`u=0`
+        unit cell. Note that in the case of a finite chain there is only one 
+        unit cell (i.e. the :math:`u=0` unit cell), whereas for an infinite 
+        chain there is an arbitrarily large number of unit cells.
 
     Returns
     -------
@@ -91,8 +111,10 @@ def single_site_spin_op(op_string,
         For ``0<=r<len(site_indices)``, ``result[r]`` is the expectaion value
         of the single-site spin operator at site ``site_indices[r]``.
     """
+    L = system_state.system_model.L
+    is_infinite = system_state.system_model.is_infinite
+    
     if site_indices == None:
-        L = system_state.system_model.L
         site_indices = range(L)
 
     result = []
@@ -100,23 +122,25 @@ def single_site_spin_op(op_string,
     try:
         for site_idx in site_indices:
             op_strings = ['id'] * L
+            site_idx = site_idx % L if is_infinite else site_idx
             op_strings[site_idx] = op_string
 
-            ev = multi_site_spin_op(op_strings,
-                                    system_state,
-                                    normalize=normalize)
+            ev = multi_site_spin_op(op_strings, system_state)
             result.append(ev)
 
     except IndexError:
-        raise IndexError("Valid site indices range from 0 to `L-1`, where "
-                         "`L` is the number of spin sites in the system.")
+        raise IndexError(_single_site_spin_op_err_msg_1)
 
     return result
 
 
 
-def multi_site_spin_op(op_strings, system_state, normalize=False):
+def multi_site_spin_op(op_strings, system_state):
     r"""Calculate the expectation value of a given multi-site spin operator.
+
+    The documentation for this function makes reference to the concept of a 
+    'unit cell', which is introduced in the documentation for the module 
+    :mod:`sbc.system`.
 
     This function calculates the expectation value of a given multi-site spin
     operator, as specified by the array of strings ``op_strings``, with respect 
@@ -125,35 +149,31 @@ def multi_site_spin_op(op_strings, system_state, normalize=False):
 
     Parameters
     ----------
-    op_strings : `array_like` (`str`, shape=(``system_state.system_model.L``,))
-        For ``0<=i<system_state.system_model.L``, ``op_strings[i]`` is a string specifying
-        the single-site spin operator at site ``i``. Only concatenations of the
-        strings ``'sx'``, ``'sy'``, ``'sz'``, and ``'id'``, separated by periods
-        ``'.'``, are accepted. E.g. ``'sx.sx.sz'`` represents the
-        single-site spin operator 
-        :math:`\hat{\sigma}_{x}^2\hat{\sigma}_{z}` and ``'sz'``
-        represents :math:`\hat{\sigma}_{z}`.
+    op_strings : `array_like` (`str`, ndim=1)
+        ``op_strings`` is expected to be a one-dimensional array of size
+        ``M*system_state.system_model.L``, where ``M`` can be any positive
+        integer for infinite chains, and ``M=1`` for finite chains.
+        ``op_strings[r]`` is a string specifying the single-site spin operator 
+        at site ``r``. Only concatenations of the strings ``'sx'``, ``'sy'``, 
+        ``'sz'``, and ``'id'``, separated by periods ``'.'``, are accepted. 
+        E.g. ``'sx.sx.sz'`` represents the single-site spin operator 
+        :math:`\hat{\sigma}_{x}^2\hat{\sigma}_{z}` and ``'sz'`` represents 
+        :math:`\hat{\sigma}_{z}`.
     system_state : :class:`sbc.state.SystemState`
         The system state.
-    normalize : `bool`, optional
-        Since the QUAPI algorithm does not preserve the unitarity of the time
-        evolution of the system state, the system state may not be properly
-        normalized, i.e. its trace may not be equal to 1. If ``normalize`` is to
-        ``True``, then the system state is renormalized such that its trace is
-        equal to 1, after which the exceptation value of the multi-site spin
-        operator is calculated. Otherwise, the system is not renormalized. Note
-        that ``system_state`` is not actually modified in the renormalization
-        procedure.
 
     Returns
     -------
     result : `complex`
         The expectation value of the multi-site spin operator.
     """
-    if len(op_strings) != system_state.system_model.L:
-        raise ValueError("An operator string needs to be specified for each "
-                         "spin site: the number of operator strings given does "
-                         "not match the number of spin sites.")
+    L = system_state.system_model.L
+    if system_state.system_model.is_infinite:
+        if len(op_strings) % L != 0:
+            raise ValueError(_multi_site_spin_op_err_msg_1a)
+    else:
+        if len(op_strings) != L:
+            raise ValueError(_multi_site_spin_op_err_msg_1b)
 
     one_legged_nodes = []
     for op_string in op_strings:
@@ -163,10 +183,7 @@ def multi_site_spin_op(op_strings, system_state, normalize=False):
 
     result = _apply_1_legged_nodes_to_system_state_mps(one_legged_nodes,
                                                        system_state)
-    result = complex(result)
-
-    if normalize == True:
-        result /= trace(system_state)
+    result = complex(result) / trace(system_state)
 
     return result
 
@@ -175,9 +192,12 @@ def multi_site_spin_op(op_strings, system_state, normalize=False):
 def nn_two_site_spin_op(op_string_1,
                         op_string_2,
                         system_state,
-                        bond_indices=None,
-                        normalize=False):
+                        bond_indices=None):
     r"""Calculate the expectation value of a given NN two-site spin operator.
+
+    The documentation for this function makes reference to the concept of a 
+    'unit cell', which is introduced in the documentation for the module 
+    :mod:`sbc.system`.
 
     This function calculates the expectation value of a given nearest-neighbour
     (NN) two-site spin operator, with respect to the system state represented by
@@ -209,17 +229,14 @@ def nn_two_site_spin_op(op_string_1,
         The bond indices corresponding to the bonds at which to evaluate the
         expectation value of the NN two-site spin operator. If set to `None`,
         then ``bond_indices`` is reset to 
-        ``range(system_state.system_model.L-1)``, i.e. the expectation value is 
-        calculated at all bonds.
-    normalize : `bool`, optional
-        Since the QUAPI algorithm does not preserve the unitarity of the time
-        evolution of the system state, the system state may not be properly
-        normalized, i.e. its trace may not be equal to 1. If ``normalize`` is to
-        ``True``, then the system state is renormalized such that its trace is
-        equal to 1, after which the exceptation value of the single-site spin
-        operator is calculated. Otherwise, the system is not renormalized. Note
-        that ``system_state`` is not actually modified in the renormalization
-        procedure.
+        ``range(system_state.system_model.L-1)`` for finite chains, and
+        ``range(system_state.system_model.L)`` for infinite chains. In other
+        words, by default the expectation value is calculated at each bond in
+        the :math:`u=0` unit cell for both finite and infinite chains, but also 
+        the bond between the :math:`u=0` and :math:`u=1` unit cells for infinite
+        chains. Note that in the case of a finite chain there is only one unit 
+        cell (i.e. the :math:`u=0` unit cell), whereas for an infinite chain 
+        there is an arbitrarily large number of unit cells.
 
     Returns
     -------
@@ -227,56 +244,62 @@ def nn_two_site_spin_op(op_string_1,
         For ``0<=r<len(bond_indices)``, ``result[r]`` is the expectaion value
         of the NN two-site spin operator at bond ``bond_indices[r]``.
     """
+    L = system_state.system_model.L
+    is_infinite = system_state.system_model.is_infinite
+    
     if bond_indices == None:
-        L = system_state.system_model.L
-        bond_indices = range(L-1)
+        bond_indices = range(L - 1 + int(is_infinite))
 
     result = []
 
     try:
         for bond_idx in bond_indices:
             op_strings = ['id'] * L
+            if is_infinite:
+                bond_idx = bond_idx % L
+                if bond_idx == L-1:
+                    op_strings += op_strings
             op_strings[bond_idx] = op_string_1
             op_strings[bond_idx+1] = op_string_2
 
-            ev = multi_site_spin_op(op_strings,
-                                    system_state,
-                                    normalize=normalize)
+            ev = multi_site_spin_op(op_strings, system_state)
             result.append(ev)
 
     except IndexError:
-        raise IndexError("Valid bond indices range from 0 to `L-2`, where "
-                         "`L` is the number of spin sites in the system.")
+        raise IndexError(_nn_two_site_spin_op_err_msg_1)
 
     return result
 
 
 
-def energy(system_state, normalize=False):
+def energy(system_state):
     r"""Calculate the expectation value of the system's energy.
 
-    This function calculates the expectation value of the system's energy with
-    respect to the system state represented by the 
-    :obj:`ostfic.state.SystemState` object ``system_state``.
+    The documentation for this function makes reference to the concept of a 
+    'unit cell', which is introduced in the documentation for the module 
+    :mod:`sbc.system`.
+
+    This function calculates the expectation value of the system's :math:`u=0`
+    unit cell energy with respect to the system state represented by the 
+    :obj:`ostfic.state.SystemState` object ``system_state``. This is the
+    quantity :math:`\left\langle\hat{H}_{u=0}^{\left(A\right)}
+    \left(t\right)\right\rangle` where :math:`\hat{H}_{u}^{\left(A\right)}
+    \left(t\right)` is given by Eq. :eq:`system_TFIM`.
+
+    Note that in the case of a finite chain there is only one unit cell (i.e. 
+    the :math:`u=0` unit cell), whereas for an infinite chain there is an 
+    arbitrarily large number of unit cells.
 
     Parameters
     ----------
     system_state : :class:`sbc.state.SystemState`
         The system state. 
-    normalize : `bool`, optional
-        Since the QUAPI algorithm does not preserve the unitarity of the time
-        evolution of the system state, the system state may not be properly
-        normalized, i.e. its trace may not be equal to 1. If ``normalize`` is to
-        ``True``, then the system state is renormalized such that its trace is
-        equal to 1, after which the exceptation value of the multi-site spin
-        operator is calculated. Otherwise, the system is not renormalized. Note
-        that ``system_state`` is not actually modified in the renormalization
-        procedure.
 
     Returns
     -------
     result : `float`
-        The expectation value of the system's energy.
+        The expectation value of the system's :math:`u=0` unit cell energy.
+
     """
     t = system_state.t
     x_fields = system_state.system_model.x_fields
@@ -287,12 +310,9 @@ def energy(system_state, normalize=False):
     hz = [z_field.eval(t) for z_field in z_fields]
     Jzz = [zz_coupler.eval(t) for zz_coupler in zz_couplers]
     
-    sx = np.array(single_site_spin_op('sx', system_state, normalize=normalize))
-    sz = np.array(single_site_spin_op('sz', system_state, normalize=normalize))
-    sz_sz = np.array(nn_two_site_spin_op('sz',
-                                         'sz',
-                                         system_state,
-                                         normalize=normalize))
+    sx = np.array(single_site_spin_op('sx', system_state))
+    sz = np.array(single_site_spin_op('sz', system_state))
+    sz_sz = np.array(nn_two_site_spin_op('sz', 'sz', system_state))
     
     result = (np.dot(hx, sx) + np.dot(hz, sz) + np.dot(Jzz, sz_sz)).real
 
@@ -319,11 +339,31 @@ def _array_rep_of_op_string(op_string):
         elif op == 'id':
             array_rep = np.matmul(array_rep, identity)
         else:
-            raise ValueError("The given operator string is not of the correct "
-                             "form: only concatenations of the strings 'sx', "
-                             "'sy', 'sz', and 'id', separated by periods '.', "
-                             "are accepted.")
+            raise ValueError(_array_rep_of_op_string_err_msg_1)
 
     array_rep = array_rep.flatten(order='F')  # Column major order.
 
     return array_rep
+
+
+
+_single_site_spin_op_err_msg_1 = \
+    ("Valid site indices range from 0 to `L-1`, where `L` is the number of "
+     "spin sites in the system.")
+
+_multi_site_spin_op_err_msg_1a = \
+    ("The number of operator strings should be a positive multiple of the "
+     "unit cell size.")
+_multi_site_spin_op_err_msg_1b = \
+    ("An operator string needs to be specified for each spin site: the number "
+     "of operator strings given does not match the number of spin sites in the "
+     "spin system.")
+
+_nn_two_site_spin_op_err_msg_1 = \
+    ("Valid bond indices range from 0 to `L-2`, where `L` is the number of "
+     "spin sites in the system.")
+
+_array_rep_of_op_string_err_msg_1 = \
+    ("The given operator string is not of the correct form: only "
+     "concatenations of the strings 'sx', 'sy', 'sz', and 'id', separated by "
+     "periods '.', are accepted.")

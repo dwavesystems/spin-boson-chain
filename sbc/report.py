@@ -25,7 +25,7 @@ import numpy as np
 from sbc.state import trace, schmidt_spectrum_sum
 from sbc.state import realignment_criterion, spin_config_prob
 from sbc.ev import single_site_spin_op, multi_site_spin_op
-from sbc.ev import nn_two_site_spin_op, energy
+from sbc.ev import nn_two_site_spin_op
 
 
 
@@ -54,6 +54,10 @@ __all__ = ["WishList", "ReportParams", "report"]
 class WishList():
     r"""A list of properties of a spin system to report to file.
 
+    The documentation for this function makes reference to the concept of a 
+    'unit cell', which is introduced in the documentation for the module 
+    :mod:`sbc.system`.
+
     An instance of this class can be used to construct a 
     :obj:`sbc.report.ReportParams` object, which itself can be used in
     conjunction with the function :func:`sbc.report.report` to report
@@ -73,28 +77,35 @@ class WishList():
         :obj:`sbc.report.WishList` object. Note that since the QUAPI 
         algorithm used in the ``sbc`` library does not preserve the unitarity
         of the time evolution of the system state, the trace may not necessarily
-        evaluate to unity.
+        evaluate to unity for finite chains. For infinite chains, the
+        algorithm explicitly renormalizes the system state such that the
+        trace is always unity.
     schmidt_spectrum_sum : `bool`, optional
-        If set to ``True``, then the Schmidt spectrum sum for all bonds is to be
+        Note that ``sbc`` can only calculate the Schmidt spectrum sum for
+        **finite** chains. If the system is finite and ``schmidt_spectrum_sum``
+        is set to ``True``, then the Schmidt spectrum sum for all bonds is to be
         reported to the output file ``'schmidt-spectrum-sum.csv'`` upon calling 
         the function :func:`sbc.report.report` using the 
         :obj:`sbc.report.WishList` object. See the documentation for the 
         function :func:`sbc.state.schmidt_spectrum_sum` for a discussion 
         regarding Schmidt spectra and Schmidt spectrum sums.
     realignment_criterion : `bool`, optional
-        If set to ``True``, then the realignment criterion is to be applied to
-        the system's current state to determine whether it is entangled, and the
-        result of this operation is to be reported to the output file 
-        ``'realignment-criterion.csv'`` upon calling the 
-        function :func:`sbc.report.report` using the 
-        :obj:`sbc.report.WishList` object. See the documentation for the
-        function :func:`sbc.state.realignment_criterion` for a brief 
-        discussion regarding the realignment criterion.
-    spin_config_probs : ``[]`` | `array_like` (``-1`` | ``1``, shape=(``num_configs``, ``L``)), optional
+        Note that ``sbc`` can only determine whether **finite** chains are
+        entangled via the realignment criterion. If the system is finite and 
+        ``realignment_criterion`` is set to ``True``, then the realignment 
+        criterion is to be applied to the system's current state to determine 
+        whether it is entangled, and the result of this operation is to be 
+        reported to the output file ``'realignment-criterion.csv'`` upon calling
+        the function :func:`sbc.report.report` using the 
+        :obj:`sbc.report.WishList` object. See the documentation for the 
+        function :func:`sbc.state.realignment_criterion` for a brief discussion 
+        regarding the realignment criterion.
+    spin_config_probs : ``[]`` | `array_like` (``-1`` | ``1``, shape=(``num_configs``, ``M*L``)), optional
         If ``spin_config_probs`` is of the form 
-        `array_like` (``-1`` | ``1``, shape=(``num_configs``, ``L``)),
-        where ``num_configs`` is a positive integer, and ``L`` is the number of 
-        sites in the system of interest, then 
+        `array_like` (``-1`` | ``1``, shape=(``num_configs``, ``M*L``)),
+        where ``num_configs`` is a positive integer, ``L`` is the unit cell size
+        in the system of interest, and :math:`M` is a positive integer that is 
+        less than or equal to the number of unit cells in said system, then 
         ``spin_config_probs[0<=i<num_configs]`` specifies a classical spin
         configuration. Moreover, for ``0<=i<num_configs``, the spin 
         configuration specified in ``spin_config_probs[i]`` is to be written to
@@ -102,7 +113,9 @@ class WishList():
         the corresponding spin configuration probability to the output file
         ``'spin-config-'+str(i+1)+'.csv'`` upon calling the function 
         :func:`sbc.report.report` using the :obj:`sbc.report.WishList` 
-        object. Note that a spin configuration is represented by an array of the
+        object. For finite chains, there is only one unit cell, hence 
+        :math:`M=1`, whereas for infinite chains :math:`M` can be any positive
+        number. Note that a spin configuration is represented by an array of the
         integers ``-1`` and ``1``, where the former represents a spin-down 
         state, and the latter a spin-up state. If ``spin_config_probs`` is set 
         to ``[]``, i.e. the default value, then no spin configuration 
@@ -118,19 +131,20 @@ class WishList():
         is not an empty array, then for 
         ``0<=i<len(ev_of_single_site_spin_ops)``, the expectation value of the
         single-site spin operator specified in ``ev_of_single_site_spin_ops[i]``
-        is to be evaluated at each site in the system and the results of which
-        are to be reported to the output file 
-        ``ev_of_single_site_spin_ops[i].replace('.', '')+'.csv'`` upon calling
-        the function :func:`sbc.report.report` using the
+        is to be evaluated at each site in the :math:`u=0` unit cell. Note that
+        in the case of a finite chain there is only one unit cell (i.e. the 
+        :math:`u=0` unit cell). The results are to be reported to the output 
+        file ``ev_of_single_site_spin_ops[i].replace('.', '')+'.csv'`` upon 
+        calling the function :func:`sbc.report.report` using the
         :obj:`sbc.report.WishList` object.
-    ev_of_multi_site_spin_ops : ``[]`` | `array_like` (`str`, shape=(``num_ops``, ``L``)), optional
+    ev_of_multi_site_spin_ops : ``[]`` | `array_like` (`str`, shape=(``num_ops``, ``M*L``)), optional
         If ``ev_of_multi_site_spin_ops`` is of the form 
-        `array_like` (`str`, shape=(``num_ops``, ``L``)),
-        where ``num_ops`` is a positive integer, and ``L`` is the number of 
-        sites in the system of interest, then 
-        ``ev_of_multi_site_spin_ops[0<=i<num_ops]`` specifies a multi-site spin
-        operator, with 
-        ``ev_of_multi_site_spin_ops[0<=i<num_ops][0<=r<L]`` specifying the
+        `array_like` (`str`, shape=(``num_ops``, ``M*L``)),
+        where ``num_ops`` is a positive integer, and ``L`` and ``M`` were
+        introduced in the description of the ``spin_config_probs`` parameter 
+        above, then ``ev_of_multi_site_spin_ops[0<=i<num_ops]`` specifies a 
+        multi-site spin operator, with 
+        ``ev_of_multi_site_spin_ops[0<=i<num_ops][0<=r<M*L]`` specifying the
         single-site spin operator at site ``r`` of the ``i`` th multi-site 
         spin operator [note that the single-site spin operator may be the 
         trivial identity operator]. Single-site spin operators are expressed as 
@@ -160,16 +174,27 @@ class WishList():
         is not an empty array, then for 
         ``0<=i<len(ev_of_nn_two_site_spin_ops)``, the expectation value of the
         NN two-site spin operator specified in ``ev_of_nn_two_site_spin_ops[i]``
-        is to be evaluated at each bond in the system and the results of which
-        are to be reported to the output file 
+        is to be evaluated at each bond in the :math:`u=0` unit cell for both
+        finite and infinite chains, but also the bond between the :math:`u=0`
+        and :math:`u=1` unit cells for infinite chains. The results are to be 
+        reported to the output file 
         ``'|'.join(ev_of_nn_two_site_spin_ops[i]).replace('.', '')+'.csv'`` upon
         calling the function :func:`sbc.report.report` using the
         :obj:`sbc.report.WishList` object.
     ev_of_energy : `bool`, optional
-        If set to ``True``, then the expectation value of the system's energy is
-        to be reported to the output file ``'energy.csv'`` upon calling the 
-        function :func:`sbc.report.report` using the :obj:`sbc.report.WishList` 
-        object.
+        If set to ``True``, then the expectation value of the system's 
+        :math:`u=0` unit cell energy is to be reported to the output file 
+        ``'energy.csv'`` upon calling the function :func:`sbc.report.report` 
+        using the :obj:`sbc.report.WishList` object. See the documentation for 
+        the function :func:`sbc.ev.energy` for further details on the
+        aforementioned energy.
+    correlation_length : `bool`, optional
+        Note that ``sbc`` can only calculate the correlation length for
+        **infinite** chains. If the system is infinite and 
+        ``correlation_length`` is set to ``True``, then the correlation length 
+        is to be reported to the output file ``'correlation-length.csv'`` upon 
+        calling the function :func:`sbc.report.report` using the 
+        :obj:`sbc.report.WishList` object.
 
     Attributes
     ----------
@@ -179,15 +204,17 @@ class WishList():
         Same description as that in the parameters section above.
     realignment_criterion : `bool`, read-only
         Same description as that in the parameters section above.
-    spin_config_probs : ``[]`` | `array_like` (``-1`` | ``1``, shape=(``num_configs``, ``L``)), read-only
+    spin_config_probs : ``[]`` | `array_like` (``-1`` | ``1``, shape=(``num_configs``, ``M*L``)), read-only
         Same description as that in the parameters section above.
     ev_of_single_site_spin_ops : ``[]`` | `array_like` (`str`, ndim=1), read-only
         Same description as that in the parameters section above.
-    ev_of_multi_site_spin_ops : ``[]`` | `array_like` (`str`, shape=(``num_ops``, ``L``)), read-only
+    ev_of_multi_site_spin_ops : ``[]`` | `array_like` (`str`, shape=(``num_ops``, ``M*L``)), read-only
         Same description as that in the parameters section above.
     ev_of_nn_two_site_spin_ops : ``[]`` | `array_like` (`str`, shape=(``num_two_site_ops``, 2)), read-only
         Same description as that in the parameters section above.
     ev_of_energy : `bool`, read-only
+        Same description as that in the parameters section above.
+    correlation_length : `bool`, read-only
         Same description as that in the parameters section above.
     """
     def __init__(self,
@@ -198,7 +225,8 @@ class WishList():
                  ev_of_single_site_spin_ops=[],
                  ev_of_multi_site_spin_ops=[],
                  ev_of_nn_two_site_spin_ops=[],
-                 ev_of_energy=False):
+                 ev_of_energy=False,
+                 correlation_length=False):
         self.state_trace = state_trace
         self.schmidt_spectrum_sum = schmidt_spectrum_sum
         self.realignment_criterion = realignment_criterion
@@ -207,6 +235,7 @@ class WishList():
         self.ev_of_multi_site_spin_ops = ev_of_multi_site_spin_ops
         self.ev_of_nn_two_site_spin_ops = ev_of_nn_two_site_spin_ops
         self.ev_of_energy = ev_of_energy
+        self.correlation_length = correlation_length
 
         self._check_spin_config_probs()
         self._check_ev_of_single_site_spin_ops()
@@ -221,30 +250,17 @@ class WishList():
         try:
             if not self.spin_config_probs:
                 return None
-            L = len(self.spin_config_probs[0])
 
             for spin_config in self.spin_config_probs:
                 spin_config = np.array(spin_config)
                 if not np.all(np.logical_or(spin_config == 1,
                                             spin_config == -1)):
-                    raise ValueError("A valid spin configuration consists of "
-                                     "an array with each element equal to "
-                                     "either 1 (signifying an Ising spin "
-                                     "pointing 'up'), or -1 (signifying an "
-                                     "Ising spin pointing 'down').")
-
-                if len(spin_config) != L:
-                    raise ValueError("All spin configurations need to have the "
-                                     "same number of spins.")
+                    msg = _wish_list_check_spin_config_probs_err_msg_1
+                    raise ValueError(msg)
 
         except TypeError:
-            raise TypeError("The parameter `spin_config_probs` of the "
-                            "`sbc.report.WishList` class is expected to be "
-                            "a sequence of sequences, where each contained "
-                            "sequence is a sequence of the integers 1 and -1, "
-                            "representing a classical Ising spin "
-                            "configuration. Each one these spin configurations "
-                            "is expected to have the same number of spins.")
+            msg = _wish_list_check_spin_config_probs_err_msg_2
+            raise TypeError(msg)
 
         return None
 
@@ -265,32 +281,15 @@ class WishList():
         try:
             if not self.ev_of_multi_site_spin_ops:
                 return None
-            L = len(self.ev_of_multi_site_spin_ops[0])
 
             parameter_str = 'sbc.report.ev_of_multi_site_spin_ops'
             for op_strings in self.ev_of_multi_site_spin_ops:
                 for op_string in op_strings:
                     self._check_op_string(op_string, parameter_str)
 
-                if len(op_strings) != L:
-                    raise ValueError("Each sequence of operator strings "
-                                     "representing a multi-site spin operator "
-                                     "is expected to have the same number of "
-                                     "operator strings, where the ith operator "
-                                     "string in a given sequence represents "
-                                     "a single-site spin operator at site i.")
-
         except TypeError:
-            raise TypeError("The parameter `ev_of_multi_site_spin_ops` of the "
-                            "`sbc.report.WishList` class is expected to be "
-                            "a sequence of sequences, where each contained "
-                            "sequence is a sequence of operator strings "
-                            "representing a multi-site spin operator. Each of "
-                            "of these sequences of strings is expected to be "
-                            "of the same length. Only concatenations of the "
-                            "strings 'sx', 'sy', 'sz', and 'id', separated by "
-                            "periods '.', are accepted as valid operator "
-                            "strings.")
+            msg = _wish_list_check_ev_of_multi_site_spin_ops_err_msg_1
+            raise TypeError(msg)
 
         return None
 
@@ -303,13 +302,8 @@ class WishList():
         parameter_str = 'sbc.report.ev_of_nn_two_site_spin_ops'
         for op_string_pair in self.ev_of_nn_two_site_spin_ops:
             if len(op_string_pair) != 2:
-                raise ValueError("The parameter `ev_of_nn_two_site_spin_ops` "
-                                 "of the `sbc.report.WishList` class is "
-                                 "expected to be a sequence of operator string "
-                                 "pairs. Only concatenations of the strings "
-                                 "'sx', 'sy', 'sz', and 'id', separated by "
-                                 "periods '.', are accepted as operator "
-                                 "strings.")
+                msg = _wish_list_check_ev_of_nn_two_site_spin_ops_err_msg_1
+                raise ValueError(msg)
             self._check_op_string(op_string_pair[0], parameter_str)
             self._check_op_string(op_string_pair[1], parameter_str)
         return None
@@ -320,11 +314,8 @@ class WishList():
         ops = op_string.split(".")
         for op in ops:
             if op not in ('sx', 'sy', 'sz', 'id'):
-                msg = ("One of the given operator strings in the parameter "
-                       "`{}` is not of the correct form: only concatenations "
-                       "of the strings 'sx', 'sy', 'sz', and 'id', separated "
-                       "by periods '.', are accepted.")
-                raise ValueError(msg.format(parameter_str))
+                msg = _wish_list_check_op_string_err_msg_1.format(parameter_str)
+                raise ValueError(msg)
 
         return None
 
@@ -395,10 +386,14 @@ def report(system_state, report_params):
     Returns
     -------
     """
+    _check_system_state_and_report_params(system_state, report_params)
+
     output_dir = report_params.output_dir
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     L = system_state.system_model.L
+    is_infinite = system_state.system_model.is_infinite
+    num_bonds = L - 1 + int(is_infinite)
     
     t = system_state.t
     if t == 0.0:
@@ -406,17 +401,12 @@ def report(system_state, report_params):
 
     wish_list = report_params.wish_list
 
-    if (wish_list.state_trace or wish_list.spin_config_probs
-        or wish_list.ev_of_single_site_spin_ops
-        or wish_list.ev_of_multi_site_spin_ops
-        or wish_list.ev_of_nn_two_site_spin_ops
-        or wish_list.ev_of_energy):
+    if wish_list.state_trace:
         state_trace = trace(system_state)
-        if wish_list.state_trace:
-            line = np.array([[t, state_trace]])
-            filename = 'state-trace.csv'
-            with open(output_dir + '/' + filename, 'a', 1) as file_obj:
-                np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
+        line = np.array([[t, state_trace]])
+        filename = 'state-trace.csv'
+        with open(output_dir + '/' + filename, 'a', 1) as file_obj:
+            np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
 
     if wish_list.schmidt_spectrum_sum or wish_list.realignment_criterion:
         S_sum = schmidt_spectrum_sum(system_state)
@@ -436,7 +426,7 @@ def report(system_state, report_params):
 
     if wish_list.spin_config_probs:
         for i, spin_config in enumerate(wish_list.spin_config_probs):
-            prob = spin_config_prob(spin_config, system_state) / state_trace
+            prob = spin_config_prob(spin_config, system_state)
             line = np.array([[t, prob]])
             filename = 'spin-config-'+str(i+1)+'.csv'
             with open(output_dir + '/' + filename, 'a', 1) as file_obj:
@@ -456,15 +446,12 @@ def report(system_state, report_params):
         Jzz = [zz_coupler.eval(t) for zz_coupler in zz_couplers]
 
         sx = np.array(single_site_spin_op('sx', system_state)).real
-        sx /= state_trace
         sx_precalculated = True
 
         sz = np.array(single_site_spin_op('sz', system_state)).real
-        sz /= state_trace
         sz_precalculated = True
         
         sz_sz = np.array(nn_two_site_spin_op('sz', 'sz', system_state)).real
-        sz_sz /= state_trace
         sz_sz = np.real(sz_sz)
         sz_sz_precalculated = True
         
@@ -489,7 +476,6 @@ def report(system_state, report_params):
             else:
                 ev_of_op = np.array(single_site_spin_op(op_string,
                                                         system_state))
-                ev_of_op /= state_trace
                 
 
             if _is_hermitian([op_string]):
@@ -514,14 +500,13 @@ def report(system_state, report_params):
                 ev_of_op = np.array(nn_two_site_spin_op(op_string_pair[0],
                                                         op_string_pair[1],
                                                         system_state))
-                ev_of_op /= state_trace
 
             if _is_hermitian(op_string_pair):
-                values = tuple([t] + [value.real for value in sz_sz])
-                fmt = 'f8, ' + 'f8, ' * (L-2) + 'f8'
+                values = tuple([t] + [value.real for value in ev_of_op])
+                fmt = 'f8, ' + 'f8, ' * (num_bonds-1) + 'f8'
             else:
-                values = tuple([t] + [value for value in sz_sz])
-                fmt = 'f8, ' + 'c16, ' * (L-2) + 'c16'
+                values = tuple([t] + [value for value in ev_of_op])
+                fmt = 'f8, ' + 'c16, ' * (num_bonds) + 'c16'
             
             line = np.array([values], dtype=fmt)        
             filename = (op_string_pair[0].replace('.', '') + '|'
@@ -532,7 +517,6 @@ def report(system_state, report_params):
     if wish_list.ev_of_multi_site_spin_ops:
         for i, op_strings in enumerate(wish_list.ev_of_multi_site_spin_ops):
             ev_of_op = multi_site_spin_op(op_strings, system_state)
-            ev_of_op /= state_trace
 
             if _is_hermitian(op_strings):
                 fmt = 'f8, f8'
@@ -544,9 +528,45 @@ def report(system_state, report_params):
             filename = 'multi-site-spin-op-'+str(i+1)+'.csv'
             with open(output_dir + '/' + filename, 'a', 1) as file_obj:
                 np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
+
+    if wish_list.correlation_length:
+        line = np.array([[t, system_state.correlation_length]])
+        filename = 'correlation-length.csv'
+        with open(output_dir + '/' + filename, 'a', 1) as file_obj:
+            np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
                         
     return None
-                    
+
+
+
+def _check_system_state_and_report_params(system_state, report_params):
+    L = system_state.system_model.L
+    wish_list = report_params.wish_list
+
+    if system_state.system_model.is_infinite:
+        for spin_config in wish_list.spin_config_probs:
+            if len(spin_config) % L != 0:
+                msg = _check_system_state_and_report_params_err_msg_1a
+                raise ValueError(msg)
+        for str_seq_of_multi_spin_op in wish_list.ev_of_multi_site_spin_ops:
+            if len(str_seq_of_multi_spin_op) % L != 0:
+                msg = _check_system_state_and_report_params_err_msg_2a
+                raise ValueError(msg)
+    else:
+        for spin_config in wish_list.spin_config_probs:
+            if len(spin_config) != L:
+                msg = _check_system_state_and_report_params_err_msg_1b
+                raise ValueError(msg)
+        for str_seq_of_multi_spin_op in wish_list.ev_of_multi_site_spin_ops:
+            if len(str_seq_of_multi_spin_op) != L:
+                msg = _check_system_state_and_report_params_err_msg_2b
+                raise ValueError(msg)
+        if wish_list.correlation_length:
+            msg = _check_system_state_and_report_params_err_msg_3
+            raise ValueError(msg)
+
+    return None
+
 
 
 def _overwrite_data_from_report_files(system_state, report_params):
@@ -554,10 +574,13 @@ def _overwrite_data_from_report_files(system_state, report_params):
     wish_list = report_params.wish_list
 
     L = system_state.system_model.L
+    is_infinite = system_state.system_model.is_infinite
+    num_bonds = L - 1 + int(is_infinite)
 
-    bond_header_1 = np.array([['t'] + ['at bond #'+str(i) for i in range(L-1)]])
-    bond_header_2 = np.array([['t']
-                              + ['EV at bond #'+str(i) for i in range(L-1)]])
+    bond_header_1 = \
+        np.array([['t'] + ['at bond #'+str(i) for i in range(num_bonds)]])
+    bond_header_2 = \
+        np.array([['t'] + ['EV at bond #'+str(i) for i in range(num_bonds)]])
     site_header = np.array([['t'] + ['EV at site #'+str(r) for r in range(L)]])
 
     
@@ -579,10 +602,21 @@ def _overwrite_data_from_report_files(system_state, report_params):
             np.savetxt(file_obj, header, fmt="%-20s", delimiter=";")
 
     if wish_list.spin_config_probs:
-        num_configs = len(wish_list.spin_config_probs)
+        configs = wish_list.spin_config_probs
+        num_configs = len(configs)
+        largest_config_size = max([len(configs[i]) for i in range(num_configs)])
+        
         header = \
             np.array([['spin config #'+str(i+1) for i in range(num_configs)]])
-        data = np.array(wish_list.spin_config_probs).transpose()
+        
+        data = []
+        for config in configs:
+            config = np.array(config, dtype='str')
+            config = np.pad(config, (0, largest_config_size-config.size),
+                            "constant", constant_values=" ")
+            data.append(config.tolist())
+        data = np.array(data).transpose()
+        
         header_and_data = np.concatenate((header, data))
         filename = 'spin-config-list.csv'
         with open(output_dir + '/' + filename, 'w', 1) as file_obj:
@@ -608,10 +642,22 @@ def _overwrite_data_from_report_files(system_state, report_params):
                 np.savetxt(file_obj, bond_header_2, fmt="%-20s", delimiter=";")
 
     if wish_list.ev_of_multi_site_spin_ops:
-        num_ops = len(wish_list.ev_of_multi_site_spin_ops)
+        str_seqs_of_multi_spin_ops = wish_list.ev_of_multi_site_spin_ops
+        num_ops = len(str_seqs_of_multi_spin_ops)
+        longest_str_seq_size = max([len(str_seqs_of_multi_spin_ops[i])
+                                    for i in range(num_ops)])
+
         header = \
             np.array([['multi-site op #'+str(i+1) for i in range(num_ops)]])
-        data = np.array(wish_list.ev_of_multi_site_spin_ops).transpose()
+
+        data = []
+        for str_seq in str_seqs_of_multi_spin_ops:
+            str_seq = np.array(str_seq, dtype='str')
+            str_seq = np.pad(str_seq, (0, str_seq.size-longest_str_seq_size),
+                            "constant", constant_values="id")
+            data.append(str_seq.tolist())
+        data = np.array(data).transpose()
+        
         header_and_data = np.concatenate((header, data))
         filename = 'multi-site-spin-op-list.csv'
         with open(output_dir + '/' + filename, 'w', 1) as file_obj:
@@ -630,6 +676,12 @@ def _overwrite_data_from_report_files(system_state, report_params):
         with open(output_dir + '/' + filename, 'w', 1) as file_obj:
             np.savetxt(file_obj, header, fmt="%-20s", delimiter=";")
 
+    if wish_list.correlation_length:
+        header = np.array([['t', 'correlation-length']])
+        filename = 'correlation-length.csv'
+        with open(output_dir + '/' + filename, 'w', 1) as file_obj:
+            np.savetxt(file_obj, header, fmt="%-20s", delimiter=";")
+
     return None
 
 
@@ -639,3 +691,59 @@ def _is_hermitian(op_strings):
                       for op_string in op_strings])
 
     return np.all(bools)
+
+
+
+_wish_list_check_spin_config_probs_err_msg_1 = \
+    ("A valid spin configuration consists of an array with each element equal "
+     "to either 1 (signifying an Ising spin pointing 'up'), or -1 (signifying "
+     "an Ising spin pointing 'down').")
+
+_wish_list_check_spin_config_probs_err_msg_2 = \
+    ("The parameter `spin_config_probs` of the `sbc.report.WishList` class is "
+     "expected to be a sequence of sequences, where each contained sequence is "
+     "a sequence of the integers 1 and -1, representing a classical Ising spin "
+     "configuration.")
+
+_wish_list_check_ev_of_multi_site_spin_ops_err_msg_1 = \
+    ("The parameter `ev_of_multi_site_spin_ops` of the `sbc.report.WishList` "
+     "class is expected to be a sequence of sequences, where each contained "
+     "sequence is a sequence of operator strings representing a multi-site "
+     "spin operator. Only concatenations of the strings 'sx', 'sy', 'sz', and "
+     "'id', separated by periods '.', are accepted as valid operator strings.")
+
+_wish_list_check_ev_of_nn_two_site_spin_ops_err_msg_1 = \
+    ("The parameter `ev_of_nn_two_site_spin_ops` of the `sbc.report.WishList` "
+     "class is expected to be a sequence of operator string pairs. Only "
+     "concatenations of the strings 'sx', 'sy', 'sz', and 'id', separated by "
+     "periods '.', are accepted as operator strings.")
+
+_wish_list_check_op_string_err_msg_1 = \
+    ("One of the given operator strings in the parameter `{}` is not of the "
+     "correct form: only concatenations of the strings 'sx', 'sy', 'sz', and "
+     "'id', separated by periods '.', are accepted.")
+
+_check_system_state_and_report_params_err_msg_1a = \
+    ("The parameter `spin_config_probs` of the `sbc.report.WishList` class is "
+     "expected to be a sequence of classical Ising spin configurations, where "
+     "the number of spins in each configuration is a positive multiple of the "
+     "system's unit cell size.")
+_check_system_state_and_report_params_err_msg_1b = \
+    ("The parameter `spin_config_probs` of the `sbc.report.WishList` class is "
+     "expected to be a sequence of classical Ising spin configurations, where "
+     "the number of spins in each configuration is equal to the number of "
+     "spins in the system.")
+
+_check_system_state_and_report_params_err_msg_2a = \
+    ("The parameter `ev_of_multi_site_spin_ops` of the `sbc.report.WishList` "
+     "class is expected to be a sequence of operator string sequences, where "
+     "the number of operator strings in each operator string sequence is equal "
+     "to a positive multiple of the system's unit cell size.")
+_check_system_state_and_report_params_err_msg_2b = \
+    ("The parameter `ev_of_multi_site_spin_ops` of the `sbc.report.WishList` "
+     "class is expected to be a sequence of operator string sequences, where "
+     "the number of operator strings in each operator string sequence is equal "
+     "to the number of spins in the system.")
+
+_check_system_state_and_report_params_err_msg_3 = \
+    ("Cannot calculate the correlation length for finite chains.")
