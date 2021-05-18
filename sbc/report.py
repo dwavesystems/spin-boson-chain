@@ -419,7 +419,7 @@ def report(system_state, report_params):
         if wish_list.realignment_criterion:
             S_sum = np.array(S_sum)
             entangled = np.any(S_sum > 1)
-            line = np.array([[t, entangled]])
+            line = np.array([(t, entangled)], dtype='f8, ?')
             filename = 'realignment-criterion.csv'
             with open(output_dir + '/' + filename, 'a', 1) as file_obj:
                 np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")

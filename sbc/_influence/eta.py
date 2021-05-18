@@ -74,7 +74,7 @@ class Eta():
         result = 0.0j
         for A_v_r_T_cmpnt in self.A_v_r_T.cmpnts:
             self.update_integration_pts(A_v_r_T_cmpnt)
-            for a in (0, 1, 3, 4):
+            for a in (0, 1, 2, 3, 5, 6, 7, 8):
                 result += self.eval_real_cmpnt(A_v_r_T_cmpnt, a)
                 result += 1j*self.eval_imag_cmpnt(l1, l2, A_v_r_T_cmpnt, a)
         
@@ -86,27 +86,29 @@ class Eta():
         W_var_max = max(self.W_vars)
         uv_cutoff = A_v_r_T_cmpnt.limit_0T.uv_cutoff
         ir_cutoff = A_v_r_T_cmpnt.limit_0T.ir_cutoff
-        
-        self.integration_pts = [0.0]*6
-        self.integration_pts[0] = -uv_cutoff
+        beta = A_v_r_T_cmpnt.beta
 
-        if W_var_max != 0.0:
-            self.integration_pts[1] = \
-                min(max(-uv_cutoff, -np.pi / W_var_max), -ir_cutoff)
-        else:
-            self.integration_pts[1] = -uv_cutoff
-
-        self.integration_pts[2] = -ir_cutoff
-        self.integration_pts[3] = -self.integration_pts[2]
-        self.integration_pts[4] = -self.integration_pts[1]
-        self.integration_pts[5] = -self.integration_pts[0]
-
+        pt_A = -np.pi / W_var_max if W_var_max != 0 else -np.inf
+        pt_B = -25 / beta
+        pts = [0.0] * 10
+        pts[0] = -uv_cutoff
+        pts[2] = min(max(-uv_cutoff, pt_A), -ir_cutoff)
+        pts[4] = -ir_cutoff
+        pts[1] = pt_B if pts[0] < pt_B < pts[2] else pts[0]
+        pts[3] = pt_B if pts[2] < pt_B < pts[4] else pts[4]
+        pts[5] = -pts[4]
+        pts[6] = -pts[3]
+        pts[7] = -pts[2]
+        pts[8] = -pts[1]
+        pts[9] = -pts[0]
+        self.integration_pts = pts
+                
         return None
 
 
 
     def eval_real_cmpnt(self, A_v_r_T_cmpnt, a):
-        if (a == 1) or (a == 3):
+        if a in (2, 3, 5, 6):
             result = self.eval_integral_type_R1(A_v_r_T_cmpnt, a)
         else:
             result = 0.0
@@ -118,7 +120,7 @@ class Eta():
 
 
     def eval_imag_cmpnt(self, l1, l2, A_v_r_T_cmpnt, a):
-        if (a == 1) or (a == 3):
+        if a in (2, 3, 5, 6):
             result = self.eval_integral_type_I1(l1, l2, A_v_r_T_cmpnt, a)
         else:
             result = 0.0

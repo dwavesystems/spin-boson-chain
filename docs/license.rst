@@ -1,5 +1,5 @@
-ostfic developer team
-=====================
+sbc developer team
+==================
 
 .. include:: ../AUTHORS.txt
     :literal:

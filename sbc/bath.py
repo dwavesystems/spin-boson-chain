@@ -687,10 +687,10 @@ class SpectralDensityCmpnt0T():
         if not isinstance(obj, SpectralDensityCmpnt0T):
             result = False
         else:
-            co_code_1 = self._func_form.__code__.co_code  # Bytecode.
-            co_code_2 = obj._func_form.__code__.co_code
-            func_kwargs_1 = self._func_kwargs
-            func_kwargs_2 = obj._func_kwargs
+            co_code_1 = self.func_form.__code__.co_code  # Bytecode.
+            co_code_2 = obj.func_form.__code__.co_code
+            func_kwargs_1 = self.func_kwargs
+            func_kwargs_2 = obj.func_kwargs
             uv_cutoff_1 = self.uv_cutoff
             uv_cutoff_2 = obj.uv_cutoff
             ir_cutoff_1 = self.ir_cutoff
@@ -714,8 +714,8 @@ class SpectralDensityCmpnt0T():
         # Custom __eq__ makes class unhashable by default. The following is
         # necessary in order for the class to behave properly with sets and
         # dictionaries.
-        func_form_co_code = self._func_form.__code__.co_code  # Bytecode.
-        func_kwargs_in_tuple_form = tuple(sorted(self._func_kwargs.items()))
+        func_form_co_code = self.func_form.__code__.co_code  # Bytecode.
+        func_kwargs_in_tuple_form = tuple(sorted(self.func_kwargs.items()))
         uv_cutoff = self.uv_cutoff
         ir_cutoff = self.ir_cutoff
         zero_pt_derivative = self.zero_pt_derivative
