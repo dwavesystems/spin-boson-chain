@@ -142,9 +142,10 @@ if use_tensorflow_as_backend:
 # discussion of the system model parameters. The following line of code
 # specifies an infinite ferromagnetic spin chain subject to fixed uniform
 # transverse and longitudinal fields, and longitudinal couplings.
-system_model = system.Model(x_fields=[-0.25],
-                            z_fields=[-0.05],
-                            zz_couplers=[1.0],
+L = 2  # Number of spin in unit cell.
+system_model = system.Model(x_fields=[-0.25]*L,
+                            z_fields=[-0.05]*L,
+                            zz_couplers=[1.0]*L,
                             is_infinite=True)
 
 # The next step towards constructing our spin-boson model is to specify the bath
@@ -172,11 +173,11 @@ A_z_0T_cmpnt = bath.SpectralDensityCmpnt0T(func_form=A_z_0T_cmpnt_func_form,
 
 A_z_0T = bath.SpectralDensity0T(cmpnts=[A_z_0T_cmpnt])
 
-bath_model = bath.Model(L=1,  # Number of spins in unit cell.
+bath_model = bath.Model(L=L,
                         beta=25,  # Inverse temperature beta=1/(kB*T).
                         memory=2.5,  # The system's memory.
-                        z_coupling_energy_scales=[1.0],  # Constant coupling.
-                        z_spectral_densities_0T=[A_z_0T])
+                        z_coupling_energy_scales=[1.0]*L,  # Constant coupling.
+                        z_spectral_densities_0T=[A_z_0T]*L)
 
 
 
@@ -218,7 +219,7 @@ tensor = np.zeros([1, 2, 1], dtype=np.complex128)
 tensor[0, 0, 0] = 1 / np.sqrt(2)  # sz=1 amplitude.
 tensor[0, 1, 0] = 1 / np.sqrt(2)  # sz=-1 amplitude.
 node = tn.Node(tensor)
-initial_state_nodes = [node]  # Only one site per unit cell.
+initial_state_nodes = [node] * L
 
 
 
@@ -237,7 +238,7 @@ system_state = SystemState(system_model,
 # for more details on other quantities that can be tracked.
 wish_list = WishList(ev_of_single_site_spin_ops=['sx'],
                      ev_of_nn_two_site_spin_ops=[('sz', 'sz')],
-                     ev_of_multi_site_spin_ops=[('sx', 'sz', 'sx')],
+                     ev_of_multi_site_spin_ops=[('sx', 'sz', 'sx', 'id')],
                      ev_of_energy=True)
 
 

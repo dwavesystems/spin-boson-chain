@@ -304,7 +304,7 @@ class SystemState():
             msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_2
             raise ValueError(msg)
 
-        self.nodes = []
+        rho_nodes = []
         for node in initial_state_nodes:
             if (node.shape[1] != d) or (len(node.shape) != 3):
                 msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_3
@@ -319,7 +319,18 @@ class SystemState():
                 tn.flatten_edges([new_node[0], new_node[2]])
                 tn.flatten_edges([new_node[0], new_node[1]])
                 
-            self.nodes.append(new_node)
+            rho_nodes.append(new_node)
+
+        is_infinite = self.system_model.is_infinite
+        state_trunc_params = self.alg_params.state_trunc_params
+        _svd.left_to_right_svd_sweep_across_mps(rho_nodes,
+                                                state_trunc_params,
+                                                is_infinite)
+        self._schmidt_spectrum = \
+            _svd.right_to_left_svd_sweep_across_mps(rho_nodes,
+                                                    state_trunc_params,
+                                                    is_infinite)
+        self.nodes = rho_nodes
 
         return None
 
@@ -427,6 +438,8 @@ class SystemState():
         state_trunc_params = self.alg_params.state_trunc_params
         is_infinite = self.system_model.is_infinite
 
+        print("n={}; k={}".format(n, k))
+
         if k <= self._max_k_in_first_iteration_procedure(n):
             rho_nodes = self._Xi_rho_vdash
         else:
@@ -453,9 +466,10 @@ class SystemState():
         _svd.left_to_right_svd_sweep_across_mps(rho_nodes,
                                                 state_trunc_params,
                                                 is_infinite)
-        _svd.right_to_left_svd_sweep_across_mps(rho_nodes,
-                                                state_trunc_params,
-                                                is_infinite)
+        self._schmidt_spectrum = \
+            _svd.right_to_left_svd_sweep_across_mps(rho_nodes,
+                                                    state_trunc_params,
+                                                    is_infinite)
 
         if k <= self._max_k_in_first_iteration_procedure(n):
             self._Xi_rho_vdash = rho_nodes
@@ -801,9 +815,7 @@ def schmidt_spectrum_sum(system_state, bond_indices=None):
     result = []
 
     try:
-        _svd.left_to_right_svd_sweep_across_mps(system_state.nodes)
-        schmidt_spectrum = \
-            _svd.right_to_left_svd_sweep_across_mps(system_state.nodes)
+        schmidt_spectrum = system_state._schmidt_spectrum
         
         for bond_idx in bond_indices:
             S_node = schmidt_spectrum[bond_idx]
