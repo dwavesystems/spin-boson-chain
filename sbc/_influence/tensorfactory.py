@@ -61,7 +61,7 @@ class InfluenceNodeRank3():
 class InfluenceNodeRank4():
     def __init__(self, total_two_pt_influence):
         self.total_two_pt_influence = total_two_pt_influence
-        K_tau = total_two_pt_influence.z_bath.K_tau
+        K_tau = total_two_pt_influence.z_bath.pkl_part.K_tau
 
         if total_two_pt_influence.alg == "yz-noise":
             self.mu_m_tau = lambda m: max(0, m-3*K_tau+1)

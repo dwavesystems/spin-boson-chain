@@ -133,6 +133,12 @@ from math import ceil
 # For explicitly releasing memory.
 import gc
 
+# For saving and loading object data to file.
+import pickle
+
+# To get the current working directory.
+import os
+
 
 
 # For creating arrays to be used to construct tensor nodes and networks.
@@ -180,6 +186,147 @@ __all__ = ["SystemState",
            "schmidt_spectrum_sum",
            "realignment_criterion",
            "spin_config_prob"]
+
+
+
+class _SystemStatePklPart():
+    def __init__(self,
+                 system_model,
+                 bath_model,
+                 alg_params,
+                 initial_state_nodes):
+        if system_model.L != bath_model.L:
+            raise ValueError(_system_state_init_err_msg_1)
+
+        self.L = system_model.L
+        self.is_infinite = system_model.is_infinite
+        self.memory = bath_model.memory
+        self.num_bonds = len(system_model.zz_couplers)
+        self.map_btwn_site_indices_and_unique_influence_paths = \
+            _calc_map_btwn_site_indices_and_unique_influence_paths(system_model,
+                                                                   bath_model)
+        
+        self.n = 0  # Time step index.
+        self.k = -1
+        self.t = 0
+        self.influence_nodes_idx = 0
+        self.alg_params = alg_params
+        self.forced_gc = True
+        self.num_k_steps_per_dump = np.inf
+
+        self.set_nodes_from_initial_state_nodes(initial_state_nodes)
+        self.Xi_rho_vdash = self.nodes
+
+        y_spectral_densities = bath_model.y_spectral_densities
+        self.alg = "yz-noise" if y_spectral_densities is not None else "z-noise"
+
+        # For caching purposes.
+        self.Xi_rho = None
+        self.trace = None
+        self.transfer_matrix = None
+        self.dominant_eigval = None
+        self.dominant_left_eigvec_node = None
+        self.dominant_right_eigvec_node = None
+        self.correlation_length = None
+
+        # Add remaining objects to pkl.
+        
+        return None
+
+
+
+    def set_nodes_from_initial_state_nodes(self, initial_state_nodes):
+        num_nodes = len(initial_state_nodes)
+        L = self.L
+        
+        if num_nodes != L:
+            msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_1
+            raise ValueError(msg)
+
+        d = initial_state_nodes[0].shape[1]
+        if (d != 2) and (d != 4):
+            msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_2
+            raise ValueError(msg)
+
+        rho_nodes = []
+        for node in initial_state_nodes:
+            if (node.shape[1] != d) or (len(node.shape) != 3):
+                msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_3
+                raise ValueError(msg)
+            
+            if node.shape[1] == 4:
+                new_node = node.copy()
+            elif node.shape[1] == 2:
+                new_node = tn.outer_product(node.copy(), tn.conj(node))
+                tn.flatten_edges([new_node[0], new_node[3]])
+                tn.flatten_edges([new_node[0], new_node[2]])
+                tn.flatten_edges([new_node[0], new_node[1]])
+                
+            rho_nodes.append(new_node)
+
+        is_infinite = self.is_infinite
+        state_trunc_params = self.alg_params.state_trunc_params
+        _svd.left_to_right_svd_sweep_across_mps(rho_nodes,
+                                                state_trunc_params,
+                                                is_infinite)
+        self.schmidt_spectrum = \
+            _svd.right_to_left_svd_sweep_across_mps(rho_nodes,
+                                                    state_trunc_params,
+                                                    is_infinite)
+        self.nodes = rho_nodes
+
+        return None
+
+
+
+    def update_sub_pkl_part_sets(self, unique_influence_paths):
+        self.sub_pkl_part_sets = []
+        for r, influence_path in unique_influence_paths.items():
+            influence_node_rank_3_factory = \
+                influence_path.influence_node_rank_3_factory
+            total_twopt_influence = \
+                influence_node_rank_3_factory.total_two_pt_influence
+            
+            influence_path_pkl_part = influence_path.pkl_part
+
+            if total_twopt_influence.alg == "yz-noise":
+                twopt_y_bath_influence_pkl_part = \
+                    total_twopt_influence.y_bath.pkl_part
+            else:
+                twopt_y_bath_influence_pkl_part = None
+
+            twopt_z_bath_influence_pkl_part = \
+                total_twopt_influence.z_bath.pkl_part
+            
+            sub_pkl_parts = \
+                {"influence_path": influence_path_pkl_part,
+                 "twopt_y_bath_influence": twopt_y_bath_influence_pkl_part,
+                 "twopt_z_bath_influence": twopt_z_bath_influence_pkl_part}
+            self.sub_pkl_part_sets.append(sub_pkl_parts)
+
+        return None
+
+
+
+def _calc_map_btwn_site_indices_and_unique_influence_paths(system_model,
+                                                           bath_model):
+    map_btwn_site_indices_and_unique_x_fields = \
+        system_model._map_btwn_site_indices_and_unique_x_fields
+    map_btwn_site_indices_and_unique_local_bath_model_cmpnt_sets = \
+        bath_model._map_btwn_site_indices_and_unique_local_model_cmpnt_sets
+
+    zip_obj = zip(map_btwn_site_indices_and_unique_x_fields,
+                  map_btwn_site_indices_and_unique_local_bath_model_cmpnt_sets)
+    pairs = list(zip_obj)
+
+    L = system_model.L
+    result = list(range(L))
+    for idx1 in range(L):
+        for idx2 in range(idx1+1, L):
+            if pairs[idx2] == pairs[idx1]:
+                result[idx2] = result[idx1]
+
+    return result
 
 
 
@@ -250,20 +397,20 @@ class SystemState():
                  system_model,
                  bath_model,
                  alg_params,
-                 initial_state_nodes):
-        if system_model.L != bath_model.L:
-            raise ValueError(_system_state_init_err_msg_1)
+                 initial_state_nodes):        
+        # if system_model.L != bath_model.L:
+        #     raise ValueError(_system_state_init_err_msg_1)
 
-        self._n = 0  # Time step index.
-        self.t = 0.0
+        # self._n = 0  # Time step index.
+        # self.t = 0.0
         self.system_model = system_model
         self.bath_model = bath_model
         self.alg_params = alg_params
-        self._num_bonds = len(system_model.zz_couplers)
+        # self.alg_params = alg_params
+        # self._num_bonds = len(system_model.zz_couplers)
         
-        self._set_nodes_from_initial_state_nodes(initial_state_nodes)
-        self._Xi_rho_vdash = self.nodes
-        self._initialize_influence_paths()
+        # self._set_nodes_from_initial_state_nodes(initial_state_nodes)
+        # self._Xi_rho_vdash = self.nodes
 
         dt = alg_params.dt
         self._z_field_phase_factor_node_rank_2_factory = \
@@ -271,82 +418,90 @@ class SystemState():
         self._zz_coupler_phase_factor_node_rank_2_factory = \
             tensorfactory.ZZCouplerPhaseFactorNodeRank2(system_model, dt)
 
-        dt = alg_params.dt
         tau = bath_model.memory
         K_tau = max(0, ceil((tau - 7.0*dt/4.0) / dt)) + 3
         self._max_k_in_first_iteration_procedure = lambda n: (n-K_tau)-1
         self._max_k_in_second_iteration_procedure = lambda n: n
 
-        self._alg = \
-            "yz-noise" if bath_model.y_spectral_densities != None else "z-noise"
-
-        self._trace = None  # For caching the instantaneous trace.
+        self._pkl_part = _SystemStatePklPart(system_model,
+                                             bath_model,
+                                             alg_params,
+                                             initial_state_nodes)
+        
+        self._initialize_influence_paths()
+        self._pkl_part.update_sub_pkl_part_sets(self._unique_influence_paths)
         
         if self.system_model.is_infinite:
             self._update_infinite_chain_alg_attrs()
-        else:
-            self.correlation_length = None
+
+        self.t = self._pkl_part.t
+        self.nodes = self._pkl_part.nodes
+        self.correlation_length = self._pkl_part.correlation_length
 
         return None
 
 
 
-    def _set_nodes_from_initial_state_nodes(self, initial_state_nodes):
-        num_nodes = len(initial_state_nodes)
-        L = self.system_model.L
+    # def _set_nodes_from_initial_state_nodes(self, initial_state_nodes):
+    #     num_nodes = len(initial_state_nodes)
+    #     L = self.system_model.L
         
-        if num_nodes != L:
-            msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_1
-            raise ValueError(msg)
+    #     if num_nodes != L:
+    #         msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_1
+    #         raise ValueError(msg)
 
-        d = initial_state_nodes[0].shape[1]
-        if (d != 2) and (d != 4):
-            msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_2
-            raise ValueError(msg)
+    #     d = initial_state_nodes[0].shape[1]
+    #     if (d != 2) and (d != 4):
+    #         msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_2
+    #         raise ValueError(msg)
 
-        rho_nodes = []
-        for node in initial_state_nodes:
-            if (node.shape[1] != d) or (len(node.shape) != 3):
-                msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_3
-                raise ValueError(msg)
+    #     rho_nodes = []
+    #     for node in initial_state_nodes:
+    #         if (node.shape[1] != d) or (len(node.shape) != 3):
+    #             msg = _system_state_set_nodes_from_initial_state_nodes_err_msg_3
+    #             raise ValueError(msg)
 
             
-            if node.shape[1] == 4:
-                new_node = node.copy()
-            elif node.shape[1] == 2:
-                new_node = tn.outer_product(node.copy(), tn.conj(node))
-                tn.flatten_edges([new_node[0], new_node[3]])
-                tn.flatten_edges([new_node[0], new_node[2]])
-                tn.flatten_edges([new_node[0], new_node[1]])
+    #         if node.shape[1] == 4:
+    #             new_node = node.copy()
+    #         elif node.shape[1] == 2:
+    #             new_node = tn.outer_product(node.copy(), tn.conj(node))
+    #             tn.flatten_edges([new_node[0], new_node[3]])
+    #             tn.flatten_edges([new_node[0], new_node[2]])
+    #             tn.flatten_edges([new_node[0], new_node[1]])
                 
-            rho_nodes.append(new_node)
+    #         rho_nodes.append(new_node)
 
-        is_infinite = self.system_model.is_infinite
-        state_trunc_params = self.alg_params.state_trunc_params
-        _svd.left_to_right_svd_sweep_across_mps(rho_nodes,
-                                                state_trunc_params,
-                                                is_infinite)
-        self._schmidt_spectrum = \
-            _svd.right_to_left_svd_sweep_across_mps(rho_nodes,
-                                                    state_trunc_params,
-                                                    is_infinite)
-        self.nodes = rho_nodes
+    #     is_infinite = self.system_model.is_infinite
+    #     state_trunc_params = self.alg_params.state_trunc_params
+    #     _svd.left_to_right_svd_sweep_across_mps(rho_nodes,
+    #                                             state_trunc_params,
+    #                                             is_infinite)
+    #     self._schmidt_spectrum = \
+    #         _svd.right_to_left_svd_sweep_across_mps(rho_nodes,
+    #                                                 state_trunc_params,
+    #                                                 is_infinite)
+    #     self.nodes = rho_nodes
 
-        return None
+    #     return None
 
 
 
     def _initialize_influence_paths(self):
-        self._map_btwn_site_indices_and_unique_influence_paths = \
-            self._calc_map_btwn_site_indices_and_unique_influence_paths()
+        pkl_part = self._pkl_part
+        
+        # self._map_btwn_site_indices_and_unique_influence_paths = \
+        #     self._calc_map_btwn_site_indices_and_unique_influence_paths()
         site_indices_of_unique_influence_paths = \
-            set(self._map_btwn_site_indices_and_unique_influence_paths)
+            set(pkl_part.map_btwn_site_indices_and_unique_influence_paths)
+        # site_indices_of_unique_influence_paths = \
+        #     set(self._map_btwn_site_indices_and_unique_influence_paths)
         
         system_model = self.system_model
         bath_model = self.bath_model
         L = system_model.L
-        dt = self.alg_params.dt
-        influence_trunc_params = self.alg_params.influence_trunc_params
+        dt = pkl_part.alg_params.dt
+        influence_trunc_params = pkl_part.alg_params.influence_trunc_params
 
         self._unique_influence_paths = \
             {r: _influence.path.Path(r, system_model, bath_model,
@@ -355,95 +510,267 @@ class SystemState():
         
         self._influence_paths = [None]*L
         for idx in range(L):
-            r = self._map_btwn_site_indices_and_unique_influence_paths[idx]
+            r = pkl_part.map_btwn_site_indices_and_unique_influence_paths[idx]
             self._influence_paths[idx] = self._unique_influence_paths[r]
         
         return None                      
 
 
 
-    def _calc_map_btwn_site_indices_and_unique_influence_paths(self):
-        system_model = self.system_model
-        bath_model = self.bath_model
+    # def _calc_map_btwn_site_indices_and_unique_influence_paths(self):
+    #     system_model = self.system_model
+    #     bath_model = self.bath_model
         
-        _map_btwn_site_indices_and_unique_x_fields = \
-            system_model._map_btwn_site_indices_and_unique_x_fields
-        _map_btwn_site_indices_and_unique_local_bath_model_cmpnt_sets = \
-            bath_model._map_btwn_site_indices_and_unique_local_model_cmpnt_sets
+    #     _map_btwn_site_indices_and_unique_x_fields = \
+    #         system_model._map_btwn_site_indices_and_unique_x_fields
+    #     _map_btwn_site_indices_and_unique_local_bath_model_cmpnt_sets = \
+    #         bath_model._map_btwn_site_indices_and_unique_local_model_cmpnt_sets
 
-        zip_obj = \
-            zip(_map_btwn_site_indices_and_unique_x_fields,
-                _map_btwn_site_indices_and_unique_local_bath_model_cmpnt_sets)
-        pairs = list(zip_obj)
+    #     zip_obj = \
+    #         zip(_map_btwn_site_indices_and_unique_x_fields,
+    #             _map_btwn_site_indices_and_unique_local_bath_model_cmpnt_sets)
+    #     pairs = list(zip_obj)
 
-        L = system_model.L
-        result = list(range(L))
-        for idx1 in range(L):
-            for idx2 in range(idx1+1, L):
-                if pairs[idx2] == pairs[idx1]:
-                    result[idx2] = result[idx1]
+    #     L = system_model.L
+    #     result = list(range(L))
+    #     for idx1 in range(L):
+    #         for idx2 in range(idx1+1, L):
+    #             if pairs[idx2] == pairs[idx1]:
+    #                 result[idx2] = result[idx1]
 
-        return result
+    #     return result
 
 
 
-    def evolve(self, num_steps=1):
+    def evolve(self,
+               num_steps=1,
+               forced_gc=True,
+               num_k_steps_per_dump=np.inf,
+               pkl_filename=None):
         r"""Evolve the system state by a given number of time steps.
 
         Parameters
         ----------
         num_steps : `int`, optional
             The number of times to step-evolve the system state.
+        forced_gc : `bool`, optional
+            By default, ``sbc`` will perform explicit garbage collection at
+            select points in the algorithm to try to release memory that is not
+            being used anymore. This is done so that the machine running ``sbc``
+            does not run out of memory. The tradeoff is a potential performance 
+            hit in wall time, which can sometimes be appreciable. If 
+            ``explicit_gc`` is set to ``True``, then explicit garbage collection
+            will be performed, otherwise garbage collection will be handled in 
+            the usual by Python.
+        num_k_steps_per_dump : `int`, optional
+            As discussed in detailed in our exposition of our QUAPI+TN approach
+            found :manual:`here <>`, in performing step evolution in the 
+            :math:`n` time step, a series of intermediate :math:`k`-steps are
+            performed as well. If system memory is large, and/or ``num_steps``
+            is large, then a single call to the method 
+            :meth:`sbc.state.SystemState.evolve` will require many 
+            :math:`k`-steps, that could take a considerable amount to complete. 
+            If the machine running the ``sbc`` simulation crashes for whatever 
+            reason, one can recover and resume their simulation calling the 
+            method :meth:`sbc.state.SystemState.recover_and_resume`, provided 
+            that the :obj:`sbc.state.SystemState` data that can be pickled has 
+            been dumped at some point during the simulation. 
+            ``num_k_steps_per_dump`` specifies the number of :math:`k`-steps to 
+            perform between data dumps. By default, no dumps are performed. Note
+            that for large unit cells and/or system memory, a single data dump 
+            could use up a lot of storage space on your machine. Hence, it is 
+            important to use this dumping feature wisely.
+        pkl_filename : `str`, optional
+            Continuing on from above, ``pkl_filename`` is the relative or 
+            absolute path to the pickle file into which the object data is
+            dumped should data dumps be performed. By default, ``pkl_filename``
+            is ``os.getcwd()+'/system-state-backup.pkl'``.
 
         Returns
         -------
         """
-        if num_steps < 0:
-            raise ValueError(_system_state_evolve_err_msg_1)
-        if num_steps == 0:
-            return None
-
-        for r, influence_path in self._unique_influence_paths.items():
-            influence_path.evolve(num_n_steps=num_steps)
-
-        self._k = max(-1, self._max_k_in_first_iteration_procedure(self._n)+1)
-        self._n += num_steps
-        self.t += num_steps * self.alg_params.dt
-            
-        while self._k <= self._max_k_in_first_iteration_procedure(self._n):
-            self._k_step()
-            gc.collect()
-
-        self._Xi_rho = self._Xi_rho_vdash[:]  # Shallow copy.
-        while self._k <= self._max_k_in_second_iteration_procedure(self._n):
-            self._k_step()
-            gc.collect()
-
-        self.nodes = self._Xi_rho
-
+        self._reset_evolve_procedure(num_steps, forced_gc, num_k_steps_per_dump)
+        self._k_steps(pkl_filename)
+        
         if self.system_model.is_infinite:
             self._update_infinite_chain_alg_attrs()
+        self._pkl_part.trace = None  # Needs to be recalculated.
 
-        self._trace = None  # Needs to be recalculated upon evolving state.
+        self.t = self._pkl_part.t
+        self.nodes = self._pkl_part.nodes
+        self.correlation_length = self._pkl_part.correlation_length
 
         return None
 
 
 
+    def _reset_evolve_procedure(self,
+                                num_steps,
+                                forced_gc,
+                                num_k_steps_per_dump):
+        if num_steps < 0:
+            raise ValueError(_system_state_reset_evolve_procedure_err_msg_1)
+        if num_steps == 0:
+            return None
+        
+        if num_k_steps_per_dump < 1:
+            raise ValueError(_system_state_reset_evolve_procedure_err_msg_2)
+
+        self._pkl_part.forced_gc = forced_gc
+        self._pkl_part.num_k_steps_per_dump = num_k_steps_per_dump
+
+        n = self._pkl_part.n
+        k = max(-1, self._max_k_in_first_iteration_procedure(n)+1)
+
+        for r, influence_path in self._unique_influence_paths.items():
+            influence_path.reset_evolve_procedure(num_n_steps=num_steps, k=k)
+
+        self._pkl_part.k = k
+        self._pkl_part.n += num_steps
+        self._pkl_part.t += num_steps * self._pkl_part.alg_params.dt
+        self._pkl_part.influence_nodes_idx = 0
+
+        k_limit = self._max_k_in_first_iteration_procedure(self._pkl_part.n)
+        if k > k_limit:
+            self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
+
+        return None
+
+
+
+    def _k_steps(self, pkl_filename):
+        k_step_count = 0
+        n = self._pkl_part.n
+        k_limit_1 = self._max_k_in_first_iteration_procedure(n)
+        k_limit_2 = self._max_k_in_second_iteration_procedure(n)
+
+        print("state check pt #0:", self._pkl_part.k, k_limit_1, k_limit_2)
+        while self._pkl_part.k <= k_limit_2:
+            self._k_step()
+            if self._pkl_part.forced_gc:
+                gc.collect()
+            k_step_count += 1
+            if k_step_count == self._pkl_part.num_k_steps_per_dump:
+                self.partial_dump(pkl_filename)
+                k_step_count = 0
+            print("state check pt #1:", self._pkl_part.k, k_limit_1, self._pkl_part.n)
+            if self._pkl_part.k == k_limit_1+1:
+                print("hey")
+                self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
+            for r, influence_path in self._unique_influence_paths.items():
+                m2_limit = \
+                    influence_path.max_m2_in_second_iteration_procedure(n)
+                if influence_path.pkl_part.m2 <= m2_limit:
+                    print("state check pt #2:", influence_path.pkl_part.m2, m2_limit+1, self._pkl_part.n)
+                    influence_path.k_step()
+        
+        self._pkl_part.nodes = self._pkl_part.Xi_rho
+
+        return None
+
+
+
+    # def evolve(self, num_steps=1, forced_gc=True, num_k_steps_per_dump=np.inf):
+    #     r"""Evolve the system state by a given number of time steps.
+
+    #     Parameters
+    #     ----------
+    #     num_steps : `int`, optional
+    #         The number of times to step-evolve the system state.
+    #     forced_gc : `bool`, optional
+    #         By default, ``sbc`` will perform explicit garbage collection at
+    #         select points in the algorithm to try to release memory that is not
+    #         being used anymore. This is done so that the machine running ``sbc``
+    #         does not run out of memory. The tradeoff is a potential performance 
+    #         hit in wall time, which can sometimes be appreciable. If 
+    #         ``explicit_gc`` is set to ``True``, then explicit garbage collection
+    #         will be performed, otherwise garbage collection will be handled in 
+    #         the usual by Python.
+    #     num_k_steps_per_dump : `int`, optional
+    #         As discussed in detailed in our exposition of our QUAPI+TN approach
+    #         found :manual:`here <>`, in performing step evolution in the 
+    #         :math:`n` time step, a series of intermediate :math:`k`-steps are
+    #         performed as well. If system memory is large, and/or ``num_steps``
+    #         is large, then a single call to the method 
+    #         :meth:`sbc.SystemState.evolve` will require many :math:`k`-steps,
+    #         that could take a considerable amount to complete. If the machine
+    #         running the ``sbc`` simulation crashes for whatever reason, one
+    #         can recover and resume their simulation calling the method 
+    #         :meth:`sbc.state.SystemState.recover_and_resume`, provided that
+    #         the :obj:`sbc.SystemState` data that can be pickled has been dumped
+    #         at some point during the simulation. ``num_k_steps_per_dump``
+    #         specifies the number of :math:`k`-steps to perform between data
+    #         dumps. By default, no dumps are performed. Note that for large unit
+    #         cells and/or system memory, a single data dump could use up a lot
+    #         of storage space on your machine. Hence, it is important to use this
+    #         dumping feature wisely.
+
+    #     Returns
+    #     -------
+    #     """
+    #     if num_steps < 0:
+    #         raise ValueError(_system_state_evolve_err_msg_1)
+    #     if num_steps == 0:
+    #         return None
+
+    #     for r, influence_path in self._unique_influence_paths.items():
+    #         influence_path.evolve(num_n_steps=num_steps, forced_gc=forced_gc)
+    #         # influence_path.evolve(num_n_steps=num_steps)
+
+    #     n = self._pkl_part.n
+    #     k = max(-1, self._max_k_in_first_iteration_procedure(n)+1)
+    #     self._pkl_part.k = k
+    #     self._pkl_part.n += num_steps
+    #     # self._k = max(-1, self._max_k_in_first_iteration_procedure(self._n)+1)
+    #     # self._n += num_steps
+    #     self.t += num_steps * self._pkl_part.alg_params.dt
+
+    #     k_limit = self._max_k_in_first_iteration_procedure(self._pkl_part.n)
+    #     # while self._k <= self._max_k_in_first_iteration_procedure(self._n):
+    #     while self._pkl_part.k <= k_limit:
+    #         self._k_step()
+    #         if forced_gc:
+    #             gc.collect()
+
+    #     self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
+    #     # self._Xi_rho = self._Xi_rho_vdash[:]
+    #     k_limit = self._max_k_in_second_iteration_procedure(self._pkl_part.n)
+    #     # while self._k <= self._max_k_in_second_iteration_procedure(self._n):
+    #     while self._pkl_part.k <= k_limit:
+    #         self._k_step()
+    #         if forced_gc:
+    #             gc.collect()
+
+    #     self._pkl_part.nodes = self._pkl_part.Xi_rho
+    #     # self.nodes = self._Xi_rho
+
+    #     if self.system_model.is_infinite:
+    #         self._update_infinite_chain_alg_attrs()
+
+    #     self._pkl_part.trace = None  # Needs to be recalculated.
+
+    #     return None
+
+
+
     def _k_step(self):
-        k = self._k
-        n = self._n
+        k = self._pkl_part.k
+        n = self._pkl_part.n
+        alg = self._pkl_part.alg
+        # k = self._k
+        # n = self._n
         L = self.system_model.L
         num_couplers = len(self.system_model.zz_couplers)
-        state_trunc_params = self.alg_params.state_trunc_params
+        state_trunc_params = self._pkl_part.alg_params.state_trunc_params
+        # state_trunc_params = self.alg_params.state_trunc_params
         is_infinite = self.system_model.is_infinite
 
-        print("n={}; k={}".format(n, k))
-
         if k <= self._max_k_in_first_iteration_procedure(n):
-            rho_nodes = self._Xi_rho_vdash
+            rho_nodes = self._pkl_part.Xi_rho_vdash
+            # rho_nodes = self._Xi_rho_vdash
         else:
-            rho_nodes = self._Xi_rho
+            rho_nodes = self._pkl_part.Xi_rho
+            # rho_nodes = self._Xi_rho
 
         restructured_zz_coupler_phase_factor_nodes = \
             self._build_split_and_restructure_zz_coupler_phase_factor_nodes()
@@ -452,6 +779,9 @@ class SystemState():
             self._update_rho_node(r,
                                   rho_nodes,
                                   restructured_zz_coupler_phase_factor_nodes)
+        if k > self._max_k_in_first_iteration_procedure(n):
+            self._pkl_part.influence_nodes_idx += \
+                1 if (k == -1) or (alg == "z-noise") else 3
 
         if k < self._max_k_in_second_iteration_procedure(n):
             one_legged_node = tn.Node(np.ones([4]))
@@ -466,29 +796,34 @@ class SystemState():
         _svd.left_to_right_svd_sweep_across_mps(rho_nodes,
                                                 state_trunc_params,
                                                 is_infinite)
-        self._schmidt_spectrum = \
+        self._pkl_part.schmidt_spectrum = \
             _svd.right_to_left_svd_sweep_across_mps(rho_nodes,
                                                     state_trunc_params,
                                                     is_infinite)
 
         if k <= self._max_k_in_first_iteration_procedure(n):
-            self._Xi_rho_vdash = rho_nodes
-            beg = 1 if (k == -1) or (self._alg == "z-noise") else 3
+            self._pkl_part.Xi_rho_vdash = rho_nodes
+            beg = 1 if (k == -1) or (self._pkl_part.alg == "z-noise") else 3
+            # self._Xi_rho_vdash = rho_nodes
+            # beg = 1 if (k == -1) or (self._alg == "z-noise") else 3
             for r, influence_path in self._unique_influence_paths.items():
-                influence_path.Xi_I_1_1_nodes = \
-                    influence_path.Xi_I_1_1_nodes[beg:]
+                influence_path.pkl_part.Xi_I_1_1_nodes = \
+                    influence_path.pkl_part.Xi_I_1_1_nodes[beg:]
         else:
-            self._Xi_rho = rho_nodes
+            self._pkl_part.Xi_rho = rho_nodes
+            # self._Xi_rho = rho_nodes
 
-        self._k += 1
+        self._pkl_part.k += 1
 
         return None
 
 
 
     def _build_split_and_restructure_zz_coupler_phase_factor_nodes(self):
-        k = self._k
-        n = self._n
+        k = self._pkl_part.k
+        n = self._pkl_part.n
+        # k = self._k
+        # n = self._n
         L = self.system_model.L
         num_couplers = len(self.system_model.zz_couplers)
         zz_coupler_phase_factor_node_rank_2_factory = \
@@ -547,15 +882,18 @@ class SystemState():
                          r,
                          rho_nodes,
                          restructured_zz_coupler_phase_factor_nodes):
-        k = self._k
-        n = self._n
+        k = self._pkl_part.k
+        n = self._pkl_part.n
+        # k = self._k
+        # n = self._n
         L = self.system_model.L
 
         influence_nodes = self._get_influence_nodes(r, k, n)
         z_field_phase_factor_node = \
             self._z_field_phase_factor_node_rank_2_factory.build(r, k+1, n)
 
-        if (k != -1) and (self._alg == "yz-noise"):
+        # if (k != -1) and (self._alg == "yz-noise"):
+        if (k != -1) and (self._pkl_part.alg == "yz-noise"):
             j_node_1 = tn.Node(np.ones([4]))
             j_node_2 = tn.Node(np.ones([4]))
             nodes_to_contract = [rho_nodes[r],
@@ -598,18 +936,24 @@ class SystemState():
 
 
     def _get_influence_nodes(self, r, k, n):
+        alg = self._pkl_part.alg
+        beg = self._pkl_part.influence_nodes_idx
+        end = beg+1 if (k == -1) or (alg == "z-noise") else beg+3
+        
         if k <= self._max_k_in_first_iteration_procedure(n):
-            Xi_I_1_1_nodes = self._influence_paths[r].Xi_I_1_1_nodes
-            beg = 0
-            end = 1 if (k == -1) or (self._alg == "z-noise") else 3
+            Xi_I_1_1_nodes = self._influence_paths[r].pkl_part.Xi_I_1_1_nodes
+            # beg = 0
+            # end = 1 if (k == -1) or (alg == "z-noise") else 3
             influence_nodes = Xi_I_1_1_nodes[beg:end]
         else:
-            Xi_I_dashv_nodes = self._influence_paths[r].Xi_I_dashv_nodes
-            num_nodes = len(Xi_I_dashv_nodes)
-            end = (num_nodes - (n+1-k) + 1
-                   if self._alg == "z-noise"
-                   else num_nodes - 3*(n+1-k) + 2*(num_nodes%3) + 1)
-            beg = end-1 if (k == -1) or (self._alg == "z-noise") else end-3
+            Xi_I_dashv_nodes = \
+                self._influence_paths[r].pkl_part.Xi_I_dashv_nodes
+            # num_nodes = len(Xi_I_dashv_nodes)
+            # end = (num_nodes - (n+1-k) + 1
+            #        if alg == "z-noise"
+            #        else num_nodes - 3*(n+1-k) + 2*(num_nodes%3) + 1)
+            # beg = end-1 if (k == -1) or (alg == "z-noise") else end-3
+            # print("get_influence_nodes checkpt #0:", num_nodes, beg, end)
             influence_nodes = Xi_I_dashv_nodes[beg:end]
 
         return influence_nodes
@@ -621,46 +965,171 @@ class SystemState():
         w, vl, vr = scipy.linalg.eig(self._transfer_matrix, left=True)
 
         dominant_eigval_idx = np.argmax(np.abs(w))
-        self._dominant_eigval = w[dominant_eigval_idx]
+        # self._dominant_eigval = w[dominant_eigval_idx]
+        self._pkl_part.dominant_eigval = w[dominant_eigval_idx]
         
         left_eigvec = vl[:, dominant_eigval_idx]
         right_eigvec = vr[:, dominant_eigval_idx]
         norm_const = np.sqrt(np.vdot(left_eigvec, right_eigvec)+0j)
         
-        self._dominant_left_eigvec_node = \
+        # self._dominant_left_eigvec_node = \
+        #     tn.Node(np.conj(left_eigvec) / norm_const)
+        # self._dominant_right_eigvec_node = \
+        #     tn.Node(right_eigvec / norm_const)
+        self._pkl_part.dominant_left_eigvec_node = \
             tn.Node(np.conj(left_eigvec) / norm_const)
-        self._dominant_right_eigvec_node = \
+        self._pkl_part.dominant_right_eigvec_node = \
             tn.Node(right_eigvec / norm_const)
 
-        L = self.system_model.L
+        # L = self.system_model.L
+        L = self._pkl_part.L
         if len(w) > 1:
-            self.correlation_length = \
+            # self.correlation_length = \
+            #     -L / np.log(np.sort(np.abs(w / self._dominant_eigval))[-2])
+            self._pkl_part.correlation_length = \
                 -L / np.log(np.sort(np.abs(w / self._dominant_eigval))[-2])
         else:
-            self.correlation_length = 0
+            # self.correlation_length = 0
+            self._pkl_part.correlation_length = 0
 
         return None
 
 
 
     def _update_transfer_matrix(self):
-        L = self.system_model.L
+        # L = self.system_model.L
+        L = self._pkl_part.L
+        nodes = self._pkl_part.nodes
         
         tensor = np.array([1, 0, 0, 1], dtype=np.complex128)
         physical_1_legged_node = tn.Node(tensor)
 
-        nodes_to_contract = [self.nodes[0], physical_1_legged_node]
+        # nodes_to_contract = [self.nodes[0], physical_1_legged_node]
+        nodes_to_contract = [nodes[0], physical_1_legged_node]
         network_struct = [(-1, 1, -2), (1,)]
         result = tn.ncon(nodes_to_contract, network_struct)
 
         for i in range(1, L):
-            nodes_to_contract = [result, self.nodes[i], physical_1_legged_node]
+            # nodes_to_contract = [result, self.nodes[i], physical_1_legged_node]
+            nodes_to_contract = [result, nodes[i], physical_1_legged_node]
             network_struct = [(-1, 2), (2, 1, -2), (1,)]
             result = tn.ncon(nodes_to_contract, network_struct)
 
-        self._transfer_matrix = np.array(result.tensor)
+        # self._transfer_matrix = np.array(result.tensor)
+        self._pkl_part.transfer_matrix = np.array(result.tensor)
 
         return None
+
+
+
+    def partial_dump(self, pkl_filename=None):
+        r"""Dump object data that can be pickled.
+
+        This function is useful for backing up data in the case that the machine
+        running ``sbc`` crashes during a simulation. The data that is dumped
+        before a crash can be used to recover the simulation and resume the
+        execution. This is done by calling the method 
+        :meth:`sbc.state.SystemState.recover_and_resume`. Note that for large 
+        unit cells and/or system memory, a single data dump could use up a lot 
+        of storage space on your machine. Hence, it is important to use this
+        dumping feature wisely.
+        
+        Parameters
+        ----------
+        pkl_filename: `str`, optional
+            Relative or absolute path to the pickle file into which the object 
+            data is dumped. By default, ``pkl_filename`` is the current working 
+            directory.
+
+        Returns
+        -------
+        """
+        if pkl_filename is None:
+            pkl_filename = os.getcwd() + '/system-state-backup.pkl'
+        else:
+            pkl_filename = pkl_filename
+            
+        self._pkl_part.update_sub_pkl_part_sets(self._unique_influence_paths)
+        with open(pkl_filename, 'wb', 0) as file_obj:
+            pickle.dump(self._pkl_part, file_obj, pickle.HIGHEST_PROTOCOL)
+        self._pkl_part.sub_pkl_part_sets = None  # Might improve gc?
+
+        return None
+
+
+
+    @classmethod
+    def recover_and_resume(cls, pkl_filename, system_model, bath_model):
+        r"""Recover :class:`sbc.state.SystemState` object and resume evolution.
+
+        If the machine running ``sbc`` for whatever reason crashes during a
+        simulation, and a backup was made via either methods
+        :meth:`sbc.state.SystemState.partial_dump` or
+        :meth:`sbc.state.SystemState.evolve`, then one can use the current
+        method to recover the :obj:`sbc.state.SystemState` object and resume an
+        unfinished call to :meth:`sbc.state.SystemState.evolve` if such a call
+        was made.
+        
+        Parameters
+        ----------
+        pkl_filename: `str`
+            Relative or absolute path to the pickle file into which the object 
+            data was dumped as a backup.
+        system_model : :class:`sbc.system.Model`
+            The system's model parameter set.
+        bath_model : :class:`sbc.bath.Model`
+            The bath's model components.
+
+        Returns
+        -------
+        system_state : :class:`sbc.state.SystemState`
+            The recovered system state.
+        """
+        with open(pkl_filename, 'rb') as file_obj:
+            pkl_part = pickle.load(file_obj)
+            
+        alg_params = pkl_part.alg_params
+        initial_state_nodes = pkl_part.nodes
+            
+        system_state = cls(system_model,
+                           bath_model,
+                           alg_params,
+                           initial_state_nodes)
+        system_state._pkl_part = pkl_part
+        _check_recovered_pkl_part(system_state)
+
+        system_state._k_steps(pkl_filename)
+
+        if system_state.system_model.is_infinite:
+            system_state._update_infinite_chain_alg_attrs()
+        system_state._pkl_part.trace = None  # Needs to be recalculated.
+
+        system_state.t = system_state._pkl_part.t
+        system_state.nodes = system_state._pkl_part.nodes
+        system_state.correlation_length = \
+            system_state._pkl_part.correlation_length
+
+        return system_state
+
+
+
+def _check_recovered_pkl_part(system_state):
+    system_model = system_state.system_model
+    bath_model = system_state.bath_model
+    y_spectral_densities = bath_model.y_spectral_densities
+    alg = "yz-noise" if y_spectral_densities is not None else "z-noise"
+    pkl_part = system_state._pkl_part
+    
+    if pkl_part.L != system_model.L:
+        raise ValueError(_check_recovered_pkl_part_err_msg_1)
+    if pkl_part.is_infinite != system_model.is_infinite:
+        raise ValueError(_check_recovered_pkl_part_err_msg_2)
+    if pkl_part.memory != bath_model.memory:
+        raise ValueError(_check_recovered_pkl_part_err_msg_3)
+    if pkl_part.alg != alg:
+        raise ValueError(_check_recovered_pkl_part_err_msg_4)
+
+    return None
 
 
 
@@ -670,10 +1139,10 @@ def _apply_1_legged_nodes_to_system_state_mps(physical_1_legged_nodes,
     L = system_state.system_model.L
 
     if system_state.system_model.is_infinite:
-        left_1_legged_node = system_state._dominant_left_eigvec_node
-        right_1_legged_node = system_state._dominant_right_eigvec_node
+        left_1_legged_node = system_state._pkl_part.dominant_left_eigvec_node
+        right_1_legged_node = system_state._pkl_part.dominant_right_eigvec_node
         num_unit_cells_required = len(physical_1_legged_nodes) // L
-        scale_factor = np.power(system_state._dominant_eigval,
+        scale_factor = np.power(system_state._pkl_part.dominant_eigval,
                                 num_unit_cells_required)
     else:
         left_1_legged_node = tn.Node(np.array([1], dtype=np.complex128))
@@ -722,8 +1191,8 @@ def trace(system_state):
         The trace of the system's reduced density matrix.
     """
     # If trace was already calculated after evolving state.
-    if system_state._trace is not None:
-        return system_state._trace
+    if system_state._pkl_part.trace is not None:
+        return system_state._pkl_part.trace
 
     L = system_state.system_model.L
 
@@ -737,7 +1206,7 @@ def trace(system_state):
     result = float(np.real(result))
 
     # Cache result for future use.
-    system_state._trace = result
+    system_state._pkl_part.trace = result
 
     return result
 
@@ -815,7 +1284,7 @@ def schmidt_spectrum_sum(system_state, bond_indices=None):
     result = []
 
     try:
-        schmidt_spectrum = system_state._schmidt_spectrum
+        schmidt_spectrum = system_state._pkl_part.schmidt_spectrum
         
         for bond_idx in bond_indices:
             S_node = schmidt_spectrum[bond_idx]
@@ -957,8 +1426,28 @@ _system_state_set_nodes_from_initial_state_nodes_err_msg_3 = \
      "form: each node is expected to have three dangling edges, with the "
      "second edge having dimensions of either 2 or 4.")
 
-_system_state_evolve_err_msg_1 = \
+_system_state_reset_evolve_procedure_err_msg_1 = \
     ("The number of time steps `num_steps` must be a non-negative integer.")
+_system_state_reset_evolve_procedure_err_msg_2 = \
+    ("The number of k-steps between data dumps `num_k_steps_per_dump` must be "
+     "a positive integer.")
+
+_check_recovered_pkl_part_err_msg_1 = \
+    ("The unit cell size specified in the recovered `sbc.state.SystemState` "
+     "object data does not match that specified in the given "
+     "`sbc.system.Model` and `sbc.bath.Model` objects.")
+_check_recovered_pkl_part_err_msg_2 = \
+    ("Between the recovered `sbc.state.SystemState` object data and the given "
+     "`sbc.system.Model` object, one specifies a finite chain whereas the "
+     "other an infinite chain.")
+_check_recovered_pkl_part_err_msg_3 = \
+    ("The system memory specified in the recovered `sbc.state.SystemState` "
+     "object data does not match that specified in the given `sbc.bath.Model` "
+     "object.")
+_check_recovered_pkl_part_err_msg_4 = \
+    ("Between the recovered `sbc.state.SystemState` object data and the given "
+     "`sbc.bath.Model` object, one specifies a system with y-noise whereas the "
+     "other does not.")
 
 _schmidt_spectrum_sum_err_msg_1a = \
     ("This function can only be applied to finite chains.")
