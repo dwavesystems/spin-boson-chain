@@ -129,21 +129,6 @@ class BathPklPart():
 
 class Bath():
     def __init__(self, r, bath_model, dt, spin_basis, pkl_part=None):
-        # if spin_basis == "y":
-        #     y_coupling_energy_scales = bath_model.y_coupling_energy_scales
-        #     if y_coupling_energy_scales == None:
-        #         self.coupling_energy_scale = Scalar(0.0)
-        #     else:
-        #         self.coupling_energy_scale = y_coupling_energy_scales[r]
-        #     self.l_idx_pairs_selector = self.l_idx_pairs_selector_for_y_noise
-        # elif spin_basis == "z":
-        #     z_coupling_energy_scales = bath_model.z_coupling_energy_scales
-        #     if z_coupling_energy_scales == None:
-        #         self.coupling_energy_scale = Scalar(0.0)
-        #     else:
-        #         self.coupling_energy_scale = z_coupling_energy_scales[r]
-        #     self.l_idx_pairs_selector = self.l_idx_pairs_selector_for_z_noise
-
         if pkl_part is None:
             self.pkl_part = BathPklPart(r, bath_model, dt, spin_basis)
         else:
@@ -152,13 +137,6 @@ class Bath():
         spin_basis = self.pkl_part.spin_basis
         self.set_coupling_energy_scales_and_l_idx_pairs_selector(bath_model,
                                                                  spin_basis)
-
-        # tau = bath_model.memory
-        # self.K_tau = max(0, ceil((tau - 7.0*dt/4.0) / dt)) + 3
-
-        # self.dt = dt
-        # eta = Eta(r, bath_model, dt, spin_basis)
-        # self.calc_eta_caches(eta)
 
         self.set_q1_q2_n(0, 0, 1)
 
@@ -218,67 +196,6 @@ class Bath():
 
 
 
-    # def calc_eta_caches(self, eta):
-    #     K_tau = self.K_tau
-
-    #     # Implementing Eq. (588) of the DM.
-    #     uf = K_tau - 2
-    #     self.eta_cache_1 = [0.0j]*(uf+1)
-    #     for u in range(0, uf+1):
-    #         l1 = 2*u + 2
-    #         l2 = 0
-    #         n = u + 1
-    #         self.eta_cache_1[u] = eta.eval(l1, l2, n)
-
-    #     # Implementing Eq. (589) of the DM.
-    #     uf = K_tau - 2
-    #     self.eta_cache_2 = [0.0j]*(uf+1)
-    #     for u in range(0, uf+1):
-    #         l1 = 2*u + 3
-    #         l2 = 0
-    #         n = u + 1
-    #         self.eta_cache_2[u] = eta.eval(l1, l2, n)
-
-    #     # Implementing Eq. (590) of the DM.
-    #     uf = K_tau - 1
-    #     self.eta_cache_3 = [0.0j]*(uf+1)
-    #     for u in range(0, uf+1):
-    #         l1 = 2*u + 2
-    #         l2 = 1
-    #         n = u + 1
-    #         self.eta_cache_3[u] = eta.eval(l1, l2, n)
-
-    #     # Implementing Eq. (591) of the DM.
-    #     uf = 2*K_tau - 1
-    #     self.eta_cache_4 = [0.0j]*(uf+1)
-    #     for u in range(0, uf+1):
-    #         l1 = 2*K_tau + 3
-    #         l2 = u + 4
-    #         n = K_tau + 2
-    #         self.eta_cache_4[u] = eta.eval(l1, l2, n)
-
-    #     # Implementing Eq. (592) of the DM.
-    #     uf = 2*K_tau - 1
-    #     self.eta_cache_5 = [0.0j]*(uf+1)
-    #     for u in range(0, uf+1):
-    #         l1 = 2*K_tau + 2
-    #         l2 = u + 3
-    #         n = K_tau + 1
-    #         self.eta_cache_5[u] = eta.eval(l1, l2, n)
-
-    #     # Implementing Eq. (593) of the DM.
-    #     uf = 2*K_tau - 1
-    #     self.eta_cache_6 = [0.0j]*(uf+1)
-    #     for u in range(0, uf+1):
-    #         l1 = 2*K_tau + 1
-    #         l2 = u + 2
-    #         n = K_tau
-    #         self.eta_cache_6[u] = eta.eval(l1, l2, n)
-
-    #     return None
-
-
-
     def set_q1_q2_n(self, q1, q2, n):
         self.pkl_part.q1 = q1
         self.pkl_part.q2 = q2
@@ -294,8 +211,6 @@ class Bath():
             t2 = (l2//2) * self.pkl_part.dt
             energy_scale_at_t1 = self.coupling_energy_scale.eval(t1)
             energy_scale_at_t2 = self.coupling_energy_scale.eval(t2)
-            # self.coupling_energy_scale_prod_cache += [energy_scale_at_t1
-            #                                           * energy_scale_at_t2]
             elem = energy_scale_at_t1 * energy_scale_at_t2
             self.pkl_part.coupling_energy_scale_prod_cache.append(elem)
 

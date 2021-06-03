@@ -82,9 +82,7 @@ class Path():
             InfluenceNodeRank3(total_two_point_influence)
         self.influence_mpo_factory = \
             InfluenceMPO(total_two_point_influence)
-        # self.trunc_params = trunc_params
 
-        # self.n = 0
         K_tau = total_two_point_influence.z_bath.pkl_part.K_tau
 
         if bath_model.y_spectral_densities != None:
@@ -117,13 +115,9 @@ class Path():
         self.pkl_part.n = n
         self.pkl_part.m2 = m2
 
-        print("path check pt #0:", self.pkl_part.m2, self.pkl_part.n)
-
         while self.first_m2_step_seq_in_reset_evolve_procedure_not_finished(k):
             self.m2_step()
 
-        print("path check pt #1:", self.pkl_part.m2, self.pkl_part.n, len(self.pkl_part.Xi_I_1_1_nodes))
-            
         if self.pkl_part.m2 <= self.max_m2_in_first_iteration_procedure(n):
             return None
 
@@ -132,8 +126,6 @@ class Path():
 
         while self.second_m2_step_seq_in_reset_evolve_procedure_not_finished(k):
             self.m2_step()
-
-        print("path check pt #2:", self.pkl_part.m2, self.pkl_part.n, len(self.pkl_part.Xi_I_dashv_1_nodes), len(self.pkl_part.Xi_I_dashv_2_nodes))
 
         return None
 
@@ -185,11 +177,8 @@ class Path():
         else:
             num_m2_steps = 3
 
-        # num_m2_steps = 3 if self.pkl_part.alg == "yz-noise" else 1
-
         for _ in range(num_m2_steps):
             self.m2_step()
-            print("path check pt #3:", self.pkl_part.m2, self.pkl_part.n)
             if self.pkl_part.m2 == max_m2_in_first_iteration_procedure_plus_1:
                 self.pkl_part.Xi_I_dashv_1_nodes = []
                 self.pkl_part.Xi_I_dashv_2_nodes = \
@@ -198,58 +187,16 @@ class Path():
         return None
 
 
-    # def evolve(self, num_n_steps, forced_gc):
-    #     n = self.pkl_part.n
-    #     m2 = max(0, self.max_m2_in_first_iteration_procedure(n)+1)
-    #     # self.m2 = max(0, self.max_m2_in_first_iteration_procedure(self.n)+1)
-    #     n += num_n_steps
-
-    #     self.pkl_part.m2 = m2
-    #     self.pkl_part.n = n
-        
-    #     # self.n += num_n_steps
-
-    #     # while self.m2 <= self.max_m2_in_first_iteration_procedure(self.n):
-    #     while self.pkl_part.m2 <= self.max_m2_in_first_iteration_procedure(n):
-    #         self.m2_step()
-    #         if forced_gc:
-    #             gc.collect()
-    #         # gc.collect()
-
-    #     # self.Xi_I_dashv_1_nodes = []
-    #     # self.Xi_I_dashv_2_nodes = self.Xi_I_1_2_nodes[:]  # Shallow copy.
-    #     self.pkl_part.Xi_I_dashv_1_nodes = []
-    #     self.pkl_part.Xi_I_dashv_2_nodes = self.pkl_part.Xi_I_1_2_nodes[:]
-    #     # while self.m2 <= self.max_m2_in_second_iteration_procedure(self.n):
-    #     while self.pkl_part.m2 <= self.max_m2_in_second_iteration_procedure(n):
-    #         self.m2_step()
-    #         if forced_gc:
-    #             gc.collect()
-    #         # gc.collect()
-
-    #     # self.Xi_I_dashv_nodes = \
-    #     #     self.Xi_I_dashv_1_nodes + self.Xi_I_dashv_2_nodes
-    #     self.pkl_part.Xi_I_dashv_nodes = \
-    #         self.pkl_part.Xi_I_dashv_1_nodes + self.pkl_part.Xi_I_dashv_2_nodes
-
-    #     return None
-
-
-
+    
     def m2_step(self):
         m2 = self.pkl_part.m2
         n = self.pkl_part.n
-        # m2 = self.m2
-        # n = self.n
-        
+
         if m2 <= self.max_m2_in_first_iteration_procedure(n):
             mps_nodes = self.pkl_part.Xi_I_1_2_nodes
-            # mps_nodes = self.Xi_I_1_2_nodes
         else:
             mps_nodes = self.pkl_part.Xi_I_dashv_2_nodes
-            # mps_nodes = self.Xi_I_dashv_2_nodes
 
-        print(m2, n)
         mpo_nodes = self.influence_mpo_factory.build(m2+1, n)
         mps_nodes = _apply_mpo_to_mps(mpo_nodes, mps_nodes)
         node = self.influence_node_rank_3_factory.build(m2+1, n)
@@ -258,29 +205,20 @@ class Path():
         trunc_params = self.pkl_part.trunc_params
         left_to_right_svd_sweep_across_mps(mps_nodes, trunc_params)
         right_to_left_svd_sweep_across_mps(mps_nodes, trunc_params)
-        # left_to_right_svd_sweep_across_mps(mps_nodes, self.trunc_params)
-        # right_to_left_svd_sweep_across_mps(mps_nodes, self.trunc_params)
 
         if m2 <= self.max_m2_in_first_iteration_procedure(n):
             if self.mu_m_tau(m=m2+2) >= 1:
                 self.pkl_part.Xi_I_1_1_nodes.append(mps_nodes.pop(0))
             self.pkl_part.Xi_I_1_2_nodes = mps_nodes
-            # if self.mu_m_tau(m=m2+2) >= 1:
-            #     self.Xi_I_1_1_nodes.append(mps_nodes.pop(0))
-            # self.Xi_I_1_2_nodes = mps_nodes
         else:
             if self.mu_m_tau(m=m2+2) >= 1:
                 self.pkl_part.Xi_I_dashv_1_nodes.append(mps_nodes.pop(0))
             self.pkl_part.Xi_I_dashv_2_nodes = mps_nodes
-            # if self.mu_m_tau(m=m2+2) >= 1:
-            #     self.Xi_I_dashv_1_nodes.append(mps_nodes.pop(0))
-            # self.Xi_I_dashv_2_nodes = mps_nodes
             self.pkl_part.Xi_I_dashv_nodes = \
                 (self.pkl_part.Xi_I_dashv_1_nodes
                  + self.pkl_part.Xi_I_dashv_2_nodes)
 
         self.pkl_part.m2 += 1
-        # self.m2 += 1
 
         return None
         
