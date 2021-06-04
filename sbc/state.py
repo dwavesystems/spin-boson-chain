@@ -785,7 +785,7 @@ class SystemState():
 
     def _update_infinite_chain_alg_attrs(self):
         self._update_transfer_matrix()
-        w, vl, vr = scipy.linalg.eig(self._transfer_matrix, left=True)
+        w, vl, vr = scipy.linalg.eig(self._pkl_part.transfer_matrix, left=True)
 
         dominant_eigval_idx = np.argmax(np.abs(w))
         self._pkl_part.dominant_eigval = w[dominant_eigval_idx]
@@ -801,8 +801,9 @@ class SystemState():
 
         L = self._pkl_part.L
         if len(w) > 1:
+            dominant_eigval = self._pkl_part.dominant_eigval
             self._pkl_part.correlation_length = \
-                -L / np.log(np.sort(np.abs(w / self._dominant_eigval))[-2])
+                -L / np.log(np.sort(np.abs(w / dominant_eigval))[-2])
         else:
             self._pkl_part.correlation_length = 0
 
