@@ -490,7 +490,7 @@ class SystemState():
             hit in wall time, which can sometimes be appreciable. If 
             ``explicit_gc`` is set to ``True``, then explicit garbage collection
             will be performed, otherwise garbage collection will be handled in 
-            the usual by Python.
+            the usual way by Python.
         num_k_steps_per_dump : `int`, optional
             As discussed in detailed in our exposition of our QUAPI+TN approach
             found :manual:`here <>`, in performing step evolution in the 
@@ -870,7 +870,12 @@ class SystemState():
 
 
     @classmethod
-    def recover_and_resume(cls, pkl_filename, system_model, bath_model):
+    def recover_and_resume(cls,
+                           pkl_filename,
+                           system_model,
+                           bath_model,
+                           forced_gc=True,
+                           num_k_steps_per_dump=np.inf):
         r"""Recover :class:`sbc.state.SystemState` object and resume evolution.
 
         If the machine running ``sbc`` for whatever reason crashes during a
@@ -890,6 +895,35 @@ class SystemState():
             The system's model parameter set.
         bath_model : :class:`sbc.bath.Model`
             The bath's model components.
+        forced_gc : `bool`, optional
+            Only applicable if an unfinished call to 
+            :meth:`sbc.state.SystemState.evolve` has been made. By default, 
+            ``sbc`` will perform explicit garbage collection at select points in
+            the algorithm to try to release memory that is not being used 
+            anymore. This is done so that the machine running ``sbc`` does not 
+            run out of memory. The tradeoff is a potential performance hit in 
+            wall time, which can sometimes be appreciable. If ``explicit_gc`` is
+            set to ``True``, then explicit garbage collection will be performed,
+            otherwise garbage collection will be handled in the usual way by 
+            Python.
+        num_k_steps_per_dump : `int`, optional
+            As discussed in detailed in our exposition of our QUAPI+TN approach
+            found :manual:`here <>`, in performing step evolution in the 
+            :math:`n` time step, a series of intermediate :math:`k`-steps are
+            performed as well. If system memory is large, and/or ``num_steps``
+            is large, then a single call to the method 
+            :meth:`sbc.state.SystemState.evolve` will require many 
+            :math:`k`-steps, that could take a considerable amount to complete. 
+            If the machine running the ``sbc`` simulation crashes for whatever 
+            reason, one can recover and resume their simulation calling the 
+            method :meth:`sbc.state.SystemState.recover_and_resume`, provided 
+            that the :obj:`sbc.state.SystemState` data that can be pickled has 
+            been dumped at some point during the simulation. 
+            ``num_k_steps_per_dump`` specifies the number of :math:`k`-steps to 
+            perform between data dumps. By default, no dumps are performed. Note
+            that for large unit cells and/or system memory, a single data dump 
+            could use up a lot of storage space on your machine. Hence, it is 
+            important to use this dumping feature wisely.
 
         Returns
         -------
@@ -899,6 +933,8 @@ class SystemState():
         with open(pkl_filename, 'rb') as file_obj:
             pkl_part = pickle.load(file_obj)
         pkl_part.just_recovered = True
+        pkl_part.forced_gc = forced_gc
+        pkl_part.num_k_steps_per_dump = num_k_steps_per_dump
             
         alg_params = pkl_part.alg_params
 
