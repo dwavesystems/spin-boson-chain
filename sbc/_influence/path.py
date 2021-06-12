@@ -9,7 +9,7 @@ r"""This module contains a class that represents an influence path/functional.
 #####################################
 
 # For explicitly releasing memory.
-# import gc
+import gc
 
 
 
@@ -107,7 +107,7 @@ class Path():
 
 
 
-    def reset_evolve_procedure(self, num_n_steps, k):
+    def reset_evolve_procedure(self, num_n_steps, k, forced_gc):
         n = self.pkl_part.n
         m2 = max(0, self.max_m2_in_first_iteration_procedure(n)+1)
         n += num_n_steps
@@ -117,6 +117,8 @@ class Path():
 
         while self.first_m2_step_seq_in_reset_evolve_procedure_not_finished(k):
             self.m2_step()
+            if forced_gc:
+                gc.collect()
 
         if self.pkl_part.m2 <= self.max_m2_in_first_iteration_procedure(n):
             return None
@@ -126,6 +128,8 @@ class Path():
 
         while self.second_m2_step_seq_in_reset_evolve_procedure_not_finished(k):
             self.m2_step()
+            if forced_gc:
+                gc.collect()
 
         return None
 
@@ -164,7 +168,7 @@ class Path():
         return condition_1 and condition_2
 
 
-    def k_step(self):
+    def k_step(self, forced_gc):
         n = self.pkl_part.n
         max_m2_in_first_iteration_procedure_plus_1 = \
             self.max_m2_in_first_iteration_procedure(n)+1
@@ -183,6 +187,8 @@ class Path():
                 self.pkl_part.Xi_I_dashv_1_nodes = []
                 self.pkl_part.Xi_I_dashv_2_nodes = \
                     self.pkl_part.Xi_I_1_2_nodes[:]
+            if forced_gc:
+                gc.collect()
 
         return None
 

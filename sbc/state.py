@@ -519,7 +519,7 @@ class SystemState():
         -------
         """
         self._reset_evolve_procedure(num_steps, forced_gc, num_k_steps_per_dump)
-        self._k_steps(pkl_filename)
+        self._k_steps(pkl_filename, forced_gc)
         
         if self.system_model.is_infinite:
             self._update_infinite_chain_alg_attrs()
@@ -552,7 +552,9 @@ class SystemState():
         k = max(-1, self._max_k_in_first_iteration_procedure(n)+1)
 
         for r, influence_path in self._unique_influence_paths.items():
-            influence_path.reset_evolve_procedure(num_n_steps=num_steps, k=k)
+            influence_path.reset_evolve_procedure(num_n_steps=num_steps,
+                                                  k=k,
+                                                  forced_gc=forced_gc)
 
         self._pkl_part.k = k
         self._pkl_part.n += num_steps
@@ -567,7 +569,7 @@ class SystemState():
 
 
 
-    def _k_steps(self, pkl_filename):
+    def _k_steps(self, pkl_filename, forced_gc):
         k_step_count = 0
         n = self._pkl_part.n
         k_limit_1 = self._max_k_in_first_iteration_procedure(n)
@@ -581,6 +583,8 @@ class SystemState():
                 k_step_count += 1
                 if k_step_count == self._pkl_part.num_k_steps_per_dump:
                     self.partial_dump(pkl_filename)
+                    if self._pkl_part.forced_gc:
+                        gc.collect()
                     k_step_count = 0
             self._pkl_part.just_recovered = False
             if self._pkl_part.k == k_limit_1+1:
@@ -589,7 +593,9 @@ class SystemState():
                 m2_limit = \
                     influence_path.max_m2_in_second_iteration_procedure(n)
                 if influence_path.pkl_part.m2 <= m2_limit:
-                    influence_path.k_step()
+                    influence_path.k_step(forced_gc)
+                    if self._pkl_part.forced_gc:
+                        gc.collect()
         
         self._pkl_part.nodes = self._pkl_part.Xi_rho
 
@@ -948,7 +954,7 @@ class SystemState():
         system_state._initialize_influence_paths()
         _check_recovered_pkl_part(system_state)
 
-        system_state._k_steps(pkl_filename)
+        system_state._k_steps(pkl_filename, forced_gc)
 
         if system_state.system_model.is_infinite:
             system_state._update_infinite_chain_alg_attrs()

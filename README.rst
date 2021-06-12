@@ -20,7 +20,7 @@ For instructions on installing the ``sbc`` library, see the
 :ref:`installation_instructions_sec` page.
 
 .. Note for those reading the raw .rst file: see file 'docs/INSTALL.rst' for
-   instructions on installing the ostfic library as well as instructions for
+   instructions on installing the sbc library as well as instructions for
    compiling the documentation of this library.
 
 Learning how to use sbc
