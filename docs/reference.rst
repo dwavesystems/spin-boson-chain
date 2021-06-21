@@ -16,7 +16,7 @@ sbc reference guide
     scalar
     system
     bath
-    trunc
+    compress
     alg
     state
     ev

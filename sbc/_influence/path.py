@@ -21,11 +21,12 @@ from sbc._influence.tensorfactory import InfluenceNodeRank3
 from sbc._influence.tensorfactory import InfluenceMPO
 
 # For applying MPO's to MPS's.
-from sbc._mpomps import _apply_mpo_to_mps
+from sbc._mpomps import apply_mpo_to_mps_and_compress
 
-# For performing SVD truncation sweeps.
-from sbc._svd import left_to_right_svd_sweep_across_mps
-from sbc._svd import right_to_left_svd_sweep_across_mps
+# For performing SVD truncation sweeps and shifting orthogonal centers.
+from sbc._svd import left_to_right_svd_sweep
+from sbc._svd import right_to_left_svd_sweep
+from sbc._svd import shift_orthogonal_center_to_the_right
 
 
 
@@ -47,8 +48,8 @@ __status__ = "Non-Production"
 ##################################
 
 class PathPklPart():
-    def __init__(self, trunc_params, alg):
-        self.trunc_params = trunc_params
+    def __init__(self, compress_params, alg):
+        self.compress_params = compress_params
         self.alg = alg
 
         self.n = 0
@@ -71,7 +72,7 @@ class Path():
                  system_model,
                  bath_model,
                  dt,
-                 trunc_params,
+                 compress_params,
                  pkl_parts=None):
         total_two_point_influence = sbc._influence.twopt.Total(r,
                                                                system_model,
@@ -96,7 +97,7 @@ class Path():
 
         if pkl_parts is None:
             alg = total_two_point_influence.alg
-            self.pkl_part = PathPklPart(trunc_params, alg)
+            self.pkl_part = PathPklPart(compress_params, alg)
             M_r_1_0_I = self.influence_node_rank_3_factory.build(0, 1)
             self.pkl_part.Xi_I_1_1_nodes = []
             self.pkl_part.Xi_I_1_2_nodes = [M_r_1_0_I]
@@ -197,6 +198,7 @@ class Path():
     def m2_step(self):
         m2 = self.pkl_part.m2
         n = self.pkl_part.n
+        compress_params = self.pkl_part.compress_params
 
         if m2 <= self.max_m2_in_first_iteration_procedure(n):
             mps_nodes = self.pkl_part.Xi_I_1_2_nodes
@@ -204,13 +206,17 @@ class Path():
             mps_nodes = self.pkl_part.Xi_I_dashv_2_nodes
 
         mpo_nodes = self.influence_mpo_factory.build(m2+1, n)
-        mps_nodes = _apply_mpo_to_mps(mpo_nodes, mps_nodes)
+        apply_mpo_to_mps_and_compress(mpo_nodes,
+                                      mps_nodes,
+                                      compress_params,
+                                      is_infinite=False)
+        
         node = self.influence_node_rank_3_factory.build(m2+1, n)
         mps_nodes.append(node)
-
-        trunc_params = self.pkl_part.trunc_params
-        left_to_right_svd_sweep_across_mps(mps_nodes, trunc_params)
-        right_to_left_svd_sweep_across_mps(mps_nodes, trunc_params)
+        current_orthogonal_center_idx = len(mps_nodes) - 2
+        shift_orthogonal_center_to_the_right(mps_nodes,
+                                             current_orthogonal_center_idx,
+                                             compress_params=None)
 
         if m2 <= self.max_m2_in_first_iteration_procedure(n):
             if self.mu_m_tau(m=m2+2) >= 1:

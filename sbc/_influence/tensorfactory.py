@@ -16,6 +16,9 @@ import numpy as np
 # For creating tensor networks and performing contractions.
 import tensornetwork as tn
 
+# For putting MPO's in left-canonical form.
+from sbc._svd import left_to_right_svd_sweep
+
 
 
 ############################
@@ -39,17 +42,25 @@ class InfluenceNodeRank3():
     def __init__(self, total_two_pt_influence):
         self.total_two_pt_influence = total_two_pt_influence
 
+        if total_two_pt_influence.alg == "yz-noise":
+            self.max_m = lambda n: 3*n+3
+        else:
+            self.max_m = lambda n: n+1
+
         return None
 
 
 
     def build(self, m, n):
         self.total_two_pt_influence.set_m1_m2_n(m1=m, m2=m, n=n)
-        tensor = np.zeros([4, 4, 1], dtype=np.complex128)
+
+        shape = [4, 4, 1] if m < self.max_m(n) else [4, 4, 4]
+        tensor = np.zeros(shape, dtype=np.complex128)
 
         for j_r_m in range(4):
             b_r_m = j_r_m
-            tensor[b_r_m, j_r_m, 0] = \
+            b_r_mP1 = 0 if m < self.max_m(n) else j_r_m
+            tensor[b_r_m, j_r_m, b_r_mP1] = \
                 self.total_two_pt_influence.eval(j_r_m, j_r_m)
 
         node = tn.Node(tensor)

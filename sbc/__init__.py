@@ -28,7 +28,7 @@ operations.
 from . import scalar
 from . import system
 from . import bath
-from . import trunc
+from . import compress
 from . import alg
 from . import state
 from . import ev
@@ -60,7 +60,7 @@ __status__       = "Development"
 __all__ = ["scalar",
            "system",
            "bath",
-           "trunc",
+           "compress",
            "alg",
            "state",
            "ev",

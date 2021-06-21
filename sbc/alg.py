@@ -47,41 +47,41 @@ class Params():
     the local path influence functionals --- ultimately is represented by a
     MPS. With each time step, the bond dimensions of these MPS's representing
     the aforementioned objects generally increase, thus increasing memory
-    requirements and the simulation runtime. To counter this, one can perform 
-    singular value decomposition (SVD) truncations to compress efficiently the 
-    MPS's. For further discussion on SVD truncation in ``sbc``, see the
-    documentation for the :class:`sbc.trunc.Params` class.
+    requirements and the simulation runtime. To counter this, one can MPS
+    compression for more efficient computations. For further discussion on MPS
+    compression in ``sbc``, see the documentation for the 
+    :class:`sbc.compress.Params` class.
 
     Parameters
     ----------
     dt : `float`
         The simulation time step size. Expected to be positive.
-    influence_trunc_params : :class:`sbc.trunc.Params`
-        The SVD truncation parameters used in compressing the MPS's representing
-        the local path influence functionals.
-    state_trunc_params : :class:`sbc.trunc.Params`
-        The SVD truncation parameters used in compressing the MPS representing
-        the system's state, i.e. the system's reduced density matrix. If the
-        system consists of a single-spin, then ``state_trunc_params`` is ignored
-        as it is not needed/used.
+    influence_compress_params : :class:`sbc.compress.Params`
+        The parameters used in compressing the MPS's representing the local path
+        influence functionals.
+    state_compress_params : :class:`sbc.compress.Params`
+        The parameters used in compressing the MPS representing the system's 
+        state, i.e. the system's reduced density matrix. If the system consists 
+        of a single-spin, then ``state_compress_params`` is ignored as it is not
+        needed/used.
 
     Attributes
     ----------
     dt : `float`, read-only
         The simulation time step size.
-    influence_trunc_params : :class:`sbc.trunc.Params`, read-only
-        The SVD truncation parameters used in compressing the MPS's representing
-        the local path influence functionals.
-    state_trunc_params : :class:`sbc.trunc.Params`, read-only
-        The SVD truncation parameters used in compressing the MPS representing
-        the system's state, i.e. the system's reduced density matrix.
+    influence_compress_params : :class:`sbc.compress.Params`, read-only
+        The parameters used in compressing the MPS's representing the local path
+        influence functionals.
+    state_compress_params : :class:`sbc.compress.Params`, read-only
+        The parameters used in compressing the MPS representing the system's 
+        state, i.e. the system's reduced density matrix.
     """
-    def __init__(self, dt, influence_trunc_params, state_trunc_params):
+    def __init__(self, dt, influence_compress_params, state_compress_params):
         if dt <= 0.0:
             raise ValueError("The parameter `dt` must be a positive number.")
         
         self.dt = dt
-        self.influence_trunc_params = influence_trunc_params
-        self.state_trunc_params = state_trunc_params
+        self.influence_compress_params = influence_compress_params
+        self.state_compress_params = state_compress_params
 
         return None

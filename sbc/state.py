@@ -161,6 +161,9 @@ from sbc import _influence
 # For performing SVD truncation sweeps.
 from sbc import _svd
 
+# For applying MPO's to MPS's.
+from sbc._mpomps import apply_mpo_to_mps_and_compress
+
 
 
 ############################
@@ -264,15 +267,10 @@ class _SystemStatePklPart():
                 
             rho_nodes.append(new_node)
 
-        is_infinite = self.is_infinite
-        state_trunc_params = self.alg_params.state_trunc_params
-        _svd.left_to_right_svd_sweep_across_mps(rho_nodes,
-                                                state_trunc_params,
-                                                is_infinite)
-        self.schmidt_spectrum = \
-            _svd.right_to_left_svd_sweep_across_mps(rho_nodes,
-                                                    state_trunc_params,
-                                                    is_infinite)
+        kwargs = {"nodes": rho_nodes,
+                  "compress_params": None,
+                  "is_infinite": self.is_infinite}
+        self.schmidt_spectrum = _svd.left_to_right_svd_sweep(**kwargs)
         self.nodes = rho_nodes
 
         return None
@@ -450,7 +448,8 @@ class SystemState():
         bath_model = self.bath_model
         L = system_model.L
         dt = pkl_part.alg_params.dt
-        influence_trunc_params = pkl_part.alg_params.influence_trunc_params
+        influence_compress_params = \
+            pkl_part.alg_params.influence_compress_params
 
         sub_pkl_part_sets = pkl_part.sub_pkl_part_sets
         self._unique_influence_paths = \
@@ -458,7 +457,7 @@ class SystemState():
                                      system_model,
                                      bath_model,
                                      dt,
-                                     influence_trunc_params,
+                                     influence_compress_params,
                                      pkl_parts=sub_pkl_part_sets.get(r))
              for r in site_indices_of_unique_influence_paths}
         
@@ -545,6 +544,7 @@ class SystemState():
         if num_k_steps_per_dump < 1:
             raise ValueError(_system_state_reset_evolve_procedure_err_msg_2)
 
+        self._pkl_part.schmidt_spectrum = None
         self._pkl_part.forced_gc = forced_gc
         self._pkl_part.num_k_steps_per_dump = num_k_steps_per_dump
 
@@ -609,7 +609,7 @@ class SystemState():
         alg = self._pkl_part.alg
         L = self.system_model.L
         num_couplers = len(self.system_model.zz_couplers)
-        state_trunc_params = self._pkl_part.alg_params.state_trunc_params
+        state_compress_params = self._pkl_part.alg_params.state_compress_params
         is_infinite = self.system_model.is_infinite
 
         if k <= self._max_k_in_first_iteration_procedure(n):
@@ -620,31 +620,35 @@ class SystemState():
         restructured_zz_coupler_phase_factor_nodes = \
             self._build_split_and_restructure_zz_coupler_phase_factor_nodes()
 
-        for r in range(0, L):
-            self._update_rho_node(r,
-                                  rho_nodes,
-                                  restructured_zz_coupler_phase_factor_nodes)
+        mpo_nodes = self._build_mpo_nodes()
+        apply_mpo_to_mps_and_compress(mpo_nodes,
+                                      rho_nodes,
+                                      state_compress_params,
+                                      is_infinite)
+
+        # for r in range(0, L):
+        #     self._update_rho_node(r,
+        #                           rho_nodes,
+        #                           restructured_zz_coupler_phase_factor_nodes)
         if k > self._max_k_in_first_iteration_procedure(n):
             self._pkl_part.influence_nodes_idx += \
                 1 if (k == -1) or (alg == "z-noise") else 3
 
-        if k < self._max_k_in_second_iteration_procedure(n):
-            one_legged_node = tn.Node(np.ones([4]))
-            network_struct = [(-1, -2, 1, -3), (1,)]
-        else:
-            one_legged_node = tn.Node(np.ones([1]))
-            network_struct = [(-1, 1, -2, -3), (1,)]
-        for r in range(0, L):
-            nodes_to_contract = [rho_nodes[r], one_legged_node]
-            rho_nodes[r] = tn.ncon(nodes_to_contract, network_struct)
+        # if k < self._max_k_in_second_iteration_procedure(n):
+        #     one_legged_node = tn.Node(np.ones([4]))
+        #     network_struct = [(-1, -2, 1, -3), (1,)]
+        # else:
+        #     one_legged_node = tn.Node(np.ones([1]))
+        #     network_struct = [(-1, 1, -2, -3), (1,)]
+        # for r in range(0, L):
+        #     nodes_to_contract = [rho_nodes[r], one_legged_node]
+        #     rho_nodes[r] = tn.ncon(nodes_to_contract, network_struct)
 
-        _svd.left_to_right_svd_sweep_across_mps(rho_nodes,
-                                                state_trunc_params,
-                                                is_infinite)
-        self._pkl_part.schmidt_spectrum = \
-            _svd.right_to_left_svd_sweep_across_mps(rho_nodes,
-                                                    state_trunc_params,
-                                                    is_infinite)
+        # kwargs = {"nodes": rho_nodes,
+        #           "compress_params": state_compress_params,
+        #           "is_infinite": is_infinite}
+        # _svd.left_to_right_svd_sweep(**kwargs)
+        # self._pkl_part.schmidt_spectrum = _svd.right_to_left_svd_sweep(**kwargs)
 
         if k <= self._max_k_in_first_iteration_procedure(n):
             self._pkl_part.Xi_rho_vdash = rho_nodes
@@ -661,6 +665,53 @@ class SystemState():
 
 
 
+    def _build_mpo_nodes(self):
+        k = self._pkl_part.k
+        n = self._pkl_part.n
+        L = self.system_model.L
+
+        mpo_nodes = []
+        
+        restructured_zz_coupler_phase_factor_nodes = \
+            self._build_split_and_restructure_zz_coupler_phase_factor_nodes()
+
+        for r in range(0, L):
+            influence_nodes = self._get_influence_nodes(r, k, n)
+            z_field_phase_factor_node = \
+                self._z_field_phase_factor_node_rank_2_factory.build(r, k+1, n)
+
+            if (k != -1) and (self._pkl_part.alg == "yz-noise"):
+                j_node_1 = tn.Node(np.ones([4]))
+                j_node_2 = tn.Node(np.ones([4]))
+                nodes_to_contract = \
+                    [influence_nodes[0],
+                     j_node_1,
+                     influence_nodes[1],
+                     j_node_2,
+                     influence_nodes[2],
+                     z_field_phase_factor_node,
+                     restructured_zz_coupler_phase_factor_nodes[r]]
+                network_struct = [(-3, 1, 4),
+                                  (1,),
+                                  (4, 2, 5),
+                                  (2,),
+                                  (5, 3, -2),
+                                  (3, 6),
+                                  (-1, 6, -4)]
+            else:
+                nodes_to_contract = \
+                    [influence_nodes[0],
+                     z_field_phase_factor_node,
+                     restructured_zz_coupler_phase_factor_nodes[r]]
+                network_struct = [(-3, 1, -2), (1, 2), (-1, 2, -4)]
+
+            mpo_node = tn.ncon(nodes_to_contract, network_struct)
+            mpo_nodes.append(mpo_node)
+
+        return mpo_nodes
+            
+
+
     def _build_split_and_restructure_zz_coupler_phase_factor_nodes(self):
         k = self._pkl_part.k
         n = self._pkl_part.n
@@ -672,9 +723,9 @@ class SystemState():
         split_zz_coupler_phase_factor_nodes = [None] * (2*L)
         for r in range(num_couplers):
             node = zz_coupler_phase_factor_node_rank_2_factory.build(r, k+1, n)
-            left_node, right_node = _svd.split_node(node=node,
-                                                    left_edges=(node[0],),
-                                                    right_edges=(node[1],))
+            left_node, right_node = _svd.split_node_svd(node=node,
+                                                        left_edges=(node[0],),
+                                                        right_edges=(node[1],))
             split_zz_coupler_phase_factor_nodes[(2*r+1)%(2*L)] = left_node
             split_zz_coupler_phase_factor_nodes[(2*r+2)%(2*L)] = right_node
 
@@ -683,33 +734,33 @@ class SystemState():
             node_1 = split_zz_coupler_phase_factor_nodes[2*r]
             node_3 = split_zz_coupler_phase_factor_nodes[2*r+1]
             if (node_1 is None) and (node_3 is None):  # L=1; finite chain.
-                tensor = np.zeros([1, 4, 4, 1], dtype=np.complex128)
+                tensor = np.zeros([1, 4, 1], dtype=np.complex128)
                 for idx in range(4):
-                    tensor[0, idx, idx, 0] = 1
+                    tensor[0, idx, 0] = 1
                 node = tn.Node(tensor)
                 restructured_zz_coupler_phase_factor_nodes.append(node)
                 break
             if (node_1 is None) and (node_3 is not None):
-                tensor = np.zeros([1, 4, 4, 4], dtype=np.complex128)
+                tensor = np.zeros([1, 4, 4], dtype=np.complex128)
                 for idx in range(4):
-                    tensor[0, idx, idx, idx] = 1
+                    tensor[0, idx, idx] = 1
                 node_2 = tn.Node(tensor)
                 nodes_to_contract = [node_2, node_3]
-                network_struct = [(-1, -2, -3, 1), (1, -4)]
+                network_struct = [(-1, -2, 1), (1, -3)]
             elif (node_1 is not None) and (node_3 is None):
-                tensor = np.zeros([4, 4, 4, 1], dtype=np.complex128)
+                tensor = np.zeros([4, 4, 1], dtype=np.complex128)
                 for idx in range(4):
-                    tensor[idx, idx, idx, 0] = 1
+                    tensor[idx, idx, 0] = 1
                 node_2 = tn.Node(tensor)
                 nodes_to_contract = [node_1, node_2]
-                network_struct = [(-1, 1), (1, -2, -3, -4)]
+                network_struct = [(-1, 1), (1, -2, -3)]
             else:
-                tensor = np.zeros([4, 4, 4, 4], dtype=np.complex128)
+                tensor = np.zeros([4, 4, 4], dtype=np.complex128)
                 for idx in range(4):
-                    tensor[idx, idx, idx, idx] = 1
+                    tensor[idx, idx, idx] = 1
                 node_2 = tn.Node(tensor)
                 nodes_to_contract = [node_1, node_2, node_3]
-                network_struct = [(-1, 1), (1, -2, -3, 2), (2, -4)]
+                network_struct = [(-1, 1), (1, -2, 2), (2, -3)]
 
             node = tn.ncon(nodes_to_contract, network_struct)
             restructured_zz_coupler_phase_factor_nodes.append(node)
@@ -718,57 +769,57 @@ class SystemState():
 
 
 
-    def _update_rho_node(self,
-                         r,
-                         rho_nodes,
-                         restructured_zz_coupler_phase_factor_nodes):
-        k = self._pkl_part.k
-        n = self._pkl_part.n
-        L = self.system_model.L
+    # def _update_rho_node(self,
+    #                      r,
+    #                      rho_nodes,
+    #                      restructured_zz_coupler_phase_factor_nodes):
+    #     k = self._pkl_part.k
+    #     n = self._pkl_part.n
+    #     L = self.system_model.L
 
-        influence_nodes = self._get_influence_nodes(r, k, n)
-        z_field_phase_factor_node = \
-            self._z_field_phase_factor_node_rank_2_factory.build(r, k+1, n)
+    #     influence_nodes = self._get_influence_nodes(r, k, n)
+    #     z_field_phase_factor_node = \
+    #         self._z_field_phase_factor_node_rank_2_factory.build(r, k+1, n)
 
-        if (k != -1) and (self._pkl_part.alg == "yz-noise"):
-            j_node_1 = tn.Node(np.ones([4]))
-            j_node_2 = tn.Node(np.ones([4]))
-            nodes_to_contract = [rho_nodes[r],
-                                 influence_nodes[0],
-                                 j_node_1,
-                                 influence_nodes[1],
-                                 j_node_2,
-                                 influence_nodes[2],
-                                 z_field_phase_factor_node,
-                                 restructured_zz_coupler_phase_factor_nodes[r]]
-            network_struct = [(-2, 6, -6),
-                              (6, 1, 4),
-                              (1,),
-                              (4, 2, 5),
-                              (2,),
-                              (5, 3, -3),
-                              (3, 7),
-                              (-1, -4, 7, -5)]
-        else:
-            nodes_to_contract = [rho_nodes[r],
-                                 influence_nodes[0],
-                                 z_field_phase_factor_node,
-                                 restructured_zz_coupler_phase_factor_nodes[r]]
-            network_struct = [(-2, 2, -6),
-                              (2, 1, -3),
-                              (1, 3),
-                              (-1,-4, 3, -5)]
+    #     if (k != -1) and (self._pkl_part.alg == "yz-noise"):
+    #         j_node_1 = tn.Node(np.ones([4]))
+    #         j_node_2 = tn.Node(np.ones([4]))
+    #         nodes_to_contract = [rho_nodes[r],
+    #                              influence_nodes[0],
+    #                              j_node_1,
+    #                              influence_nodes[1],
+    #                              j_node_2,
+    #                              influence_nodes[2],
+    #                              z_field_phase_factor_node,
+    #                              restructured_zz_coupler_phase_factor_nodes[r]]
+    #         network_struct = [(-2, 6, -6),
+    #                           (6, 1, 4),
+    #                           (1,),
+    #                           (4, 2, 5),
+    #                           (2,),
+    #                           (5, 3, -3),
+    #                           (3, 7),
+    #                           (-1, -4, 7, -5)]
+    #     else:
+    #         nodes_to_contract = [rho_nodes[r],
+    #                              influence_nodes[0],
+    #                              z_field_phase_factor_node,
+    #                              restructured_zz_coupler_phase_factor_nodes[r]]
+    #         network_struct = [(-2, 2, -6),
+    #                           (2, 1, -3),
+    #                           (1, 3),
+    #                           (-1,-4, 3, -5)]
 
-        updated_rho_node = tn.ncon(nodes_to_contract, network_struct)
-        tn.flatten_edges([updated_rho_node[0], updated_rho_node[1]])
-        tn.flatten_edges([updated_rho_node[2], updated_rho_node[3]])
-        updated_rho_node.reorder_edges([updated_rho_node[2],
-                                        updated_rho_node[0],
-                                        updated_rho_node[1],
-                                        updated_rho_node[3]])
-        rho_nodes[r] = updated_rho_node
+    #     updated_rho_node = tn.ncon(nodes_to_contract, network_struct)
+    #     tn.flatten_edges([updated_rho_node[0], updated_rho_node[1]])
+    #     tn.flatten_edges([updated_rho_node[2], updated_rho_node[3]])
+    #     updated_rho_node.reorder_edges([updated_rho_node[2],
+    #                                     updated_rho_node[0],
+    #                                     updated_rho_node[1],
+    #                                     updated_rho_node[3]])
+    #     rho_nodes[r] = updated_rho_node
 
-        return None
+    #     return None
         
 
 
@@ -1140,7 +1191,15 @@ def schmidt_spectrum_sum(system_state, bond_indices=None):
     result = []
 
     try:
-        schmidt_spectrum = system_state._pkl_part.schmidt_spectrum
+        if system_state._pkl_part.schmidt_spectrum is None:
+            kwargs = {"nodes": system_state.rho_nodes,
+                      "compress_params": None,
+                      "is_infinite": system_state.is_infinite}
+            _svd.right_to_left_svd_sweep(**kwargs)
+            schmidt_spectrum = _svd.left_to_right_svd_sweep(**kwargs)
+            system_state._pkl_part.schmidt_spectrum = schmidt_spectrum  # Cache.
+        else:
+            schmidt_spectrum = system_state._pkl_part.schmidt_spectrum
         
         for bond_idx in bond_indices:
             S_node = schmidt_spectrum[bond_idx]

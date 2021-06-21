@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-r"""For specifying how to truncate Schmidt spectra in MPS compression.
+r"""For specifying parameters related to MPS compression.
 """
 
 
@@ -33,7 +33,7 @@ __all__ = ["Params"]
 
 
 class Params():
-    r"""Parameters specifying how to truncate Schmidt spectrum in a SVD.
+    r"""Parameters specifying how to compress a matrix-product state.
 
     ``sbc`` adopts the quasi-adiabatic path integral (QUAPI) formalism to 
     express the spin system's reduced density matrix as a time-discretized
@@ -66,6 +66,13 @@ class Params():
     largest singular value after the initial truncation procedure has been
     performed.
 
+    One can improve the compression of a finite MPS by performing a subsequent
+    set of variational compression sweeps. This may be worthwhile for a MPS
+    representing a local path influence functional, however it is likely to
+    be too costly for a MPS that spans space (e.g. one representing the system
+    state) rather than time (e.g. a local path influence functional). It is
+    recommended to consider only this feature for MPS's spanning time.
+
     For more information on local path influence functionals, and the tensor
     network (TN) algorithm used to calculate the system's state, see our 
     detailed exposition on our QUAPI+TN approach found :manual:`here <>`.
@@ -80,9 +87,29 @@ class Params():
         cannot go below ``max_trunc_err`` without keeping more than
         ``max_num_singular_values`` singular values, then the parameter
         ``max_trunc_err`` is ignored while performing the SVD truncation.
-    rel_tol : `None` | `float`, optional
+    svd_rel_tol : `None` | `float`, optional
         The relative tolerance after the initial truncation procedure has been
-        performed. If not set to `None`, ``rel_tol`` is expected to be positive.
+        performed. If not set to `None`, ``svd_rel_tol`` is expected to be 
+        positive.
+    max_num_var_sweeps : `int`, optional
+        The maximum number of variational compression sweeps to perform. Note
+        that a single sweep goes right to left, then left to right. If
+        ``max_num_var_sweeps=0`` and/or the MPS is infinite, then no sweeps are 
+        performed.
+    var_rel_tol : `float`, optional
+        To check the accuracy of the variational compression, we track
+
+        .. math ::
+            \frac{\left|\left|\psi\right\rangle
+            -\left|\tilde{\psi}\right\rangle\right|}
+            {\left|\left|\psi\right\rangle\right|},
+
+        where :math:`\left|\psi\right\rangle` is the MPS to be compressed,
+        and :math:`\left|\tilde{\psi}\right\rangle` is the compressed MPS. 
+        Before starting a new sweep, the above quantity is calculated. If said
+        quantity is less than ``var_rel_tol`` then no new sweep is initiated
+        and the variational compression procedure stops, returning the current
+        compressed MPS. This parameter is ignored for infinite MPS's.
 
     Attributes
     ----------
@@ -94,37 +121,62 @@ class Params():
         cannot go below ``max_trunc_err`` without keeping more than
         ``max_num_singular_values`` singular values, then the attribute
         ``max_trunc_err`` is ignored while performing the SVD truncation.
-    rel_tol : `None` | `float`, read-only
+    svd_rel_tol : `None` | `float`, read-only
         The relative tolerance after the initial truncation procedure has been
-        performed. If not set to `None`, ``rel_tol`` is expected to be positive.
+        performed. If not set to `None`, ``svd_rel_tol`` is expected to be 
+        positive.
+    max_num_var_sweeps : `int`, read-only
+        The maximum number of variational compression sweeps to perform. Note
+        that a single sweep goes right to left, then left to right. If
+        ``max_num_var_sweeps=0`` and/or the MPS is infinite, then no sweeps are 
+    var_rel_tol : `float`, optional
+        To check the accuracy of the variational compression, we track
+
+        .. math ::
+            \frac{\left|\left|\psi\right\rangle
+            -\left|\tilde{\psi}\right\rangle\right|}
+            {\left|\left|\psi\right\rangle\right|},
+
+        where :math:`\left|\psi\right\rangle` is the MPS to be compressed,
+        and :math:`\left|\tilde{\psi}\right\rangle` is the compressed MPS. 
+        Before starting a new sweep, the above quantity is calculated. If said
+        quantity is less than ``var_rel_tol`` then no new sweep is initiated
+        and the variational compression procedure stops, returning the current
+        compressed MPS.
     """
     def __init__(self,
                  max_num_singular_values=None,
                  max_trunc_err=None,
-                 rel_tol=None):
-        if max_num_singular_values == None:
-            self.max_num_singular_values = None
-        else:
+                 svd_rel_tol=None,
+                 max_num_var_sweeps=0,
+                 var_rel_tol=1e-6):
+        if max_num_singular_values is not None:
             if max_num_singular_values < 1:
                 raise ValueError("The parameter `max_num_singular_values` must "
                                  "be a positive integer or set to type `None`.")
 
-        if max_trunc_err == None:
-            self.max_trunc_err = None
-        else:
+        if max_trunc_err is not None:
             if max_trunc_err < 0:
                 raise ValueError("The parameter `max_trunc_err` must be a "
                                  "non-negative number or set to type `None`.")
 
-        if rel_tol == None:
-            self.rel_tol = None
-        else:
-            if rel_tol <= 0:
-                raise ValueError("The parameter `rel_tol` must be a "
+        if svd_rel_tol is not None:
+            if svd_rel_tol <= 0:
+                raise ValueError("The parameter `svd_rel_tol` must be a "
                                  "positive number or set to type `None`.")
+
+        if max_num_var_sweeps < 0:
+            raise ValueError("The parameter `max_num_var_sweeps` must be a "
+                             "non-negative number.")
+
+        if var_rel_tol <= 0:
+            raise ValueError("The parameter `var_rel_tol` must be a "
+                             "positive number.")
         
         self.max_num_singular_values = max_num_singular_values
         self.max_trunc_err = max_trunc_err
-        self.rel_tol = rel_tol
+        self.svd_rel_tol = svd_rel_tol
+        self.max_num_var_sweeps = max_num_var_sweeps
+        self.var_rel_tol = var_rel_tol
 
         return None
