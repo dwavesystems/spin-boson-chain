@@ -255,17 +255,17 @@ def update_mps_node_in_zip_up(node_idx,
 
     if i == imax:
         nodes_to_contract = (mpo_node, mps_node)
-        network_struct = [(-2, -3, 1, -4), (-1, 1, -5)]
+        network_struct = [(-1, -3, 1, -4), (-2, 1, -5)]
         temp_node_2 = tn.ncon(nodes_to_contract, network_struct)
         tn.flatten_edges([temp_node_2[3], temp_node_2[4]])
     elif 0 <= i < imax:
         nodes_to_contract = (mps_node, U, S)
-        network_struct = [(-1, -2, 2), (2, -3, 1), (1, -4)]
+        network_struct = [(-1, -2, 2), (-3, 2, 1), (1, -4)]
         temp_node_1 = tn.ncon(nodes_to_contract, network_struct)
         temp_node_1[1] ^ mpo_node[2]
         temp_node_1[2] ^ mpo_node[3]
         output_edge_order = \
-            (temp_node_1[0], mpo_node[0], mpo_node[1], temp_node_1[3])
+            (mpo_node[0], temp_node_1[0], mpo_node[1], temp_node_1[3])
         temp_node_2 = tn.contract_between(node1=temp_node_1,
                                           node2=mpo_node,
                                           output_edge_order=output_edge_order)
@@ -301,15 +301,16 @@ def return_svd_sweep_after_zip_up(mpo_nodes,
                                   initial_mps_nodes,
                                   compress_params,
                                   is_infinite):
-    imax = len(mps_nodes) - 2 + int(is_infinite)
+    imin = 0 - int(is_infinite)
+    imax = len(mps_nodes) - 2
     L = trivial_L(mpo_nodes, initial_mps_nodes)
     L_cache = [L]
     
-    for i in range(imax+1):
+    for i in range(imin, imax+1):
         kwargs = {"nodes": mps_nodes,
                   "current_orthogonal_center_idx": i,
                   "compress_params": compress_params}
-        _ = _svd.shift_orthogonal_center_to_the_right(**kwargs)
+        _svd.shift_orthogonal_center_to_the_right(**kwargs)
         
         if (compress_params.max_num_var_sweeps > 0) and (not is_infinite):
             M = initial_mps_nodes[i]
@@ -518,5 +519,25 @@ def update_node_and_shift_right_in_variational_compression(mpo_nodes,
                                  node2=conj_A,
                                  output_edge_order=output_edge_order)
     L_cache.append(next_L)
+
+    return None
+
+
+
+def apply_mpo_to_mps(mpo_nodes, mps_nodes):
+    num_mps_nodes = len(mps_nodes)
+    new_mps_nodes = []
+    for node_idx in range(num_mps_nodes):
+        nodes_to_contract = [mpo_nodes[node_idx], mps_nodes[node_idx]]
+        network_struct = [(-1, -3, 1, -4), (-2, 1, -5)]
+        new_mps_node = tn.ncon(nodes_to_contract, network_struct)
+
+        tn.flatten_edges([new_mps_node[0], new_mps_node[1]])
+        tn.flatten_edges([new_mps_node[1], new_mps_node[2]])
+        new_mps_node.reorder_edges([new_mps_node[1],
+                                    new_mps_node[0],
+                                    new_mps_node[2]])
+
+        mps_nodes[node_idx] = new_mps_node
 
     return None

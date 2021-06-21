@@ -23,9 +23,7 @@ from sbc._influence.tensorfactory import InfluenceMPO
 # For applying MPO's to MPS's.
 from sbc._mpomps import apply_mpo_to_mps_and_compress
 
-# For performing SVD truncation sweeps and shifting orthogonal centers.
-from sbc._svd import left_to_right_svd_sweep
-from sbc._svd import right_to_left_svd_sweep
+# For shifting orthogonal centers of MPS's.
 from sbc._svd import shift_orthogonal_center_to_the_right
 
 

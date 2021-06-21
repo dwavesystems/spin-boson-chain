@@ -16,9 +16,6 @@ import numpy as np
 # For creating tensor networks and performing contractions.
 import tensornetwork as tn
 
-# For putting MPO's in left-canonical form.
-from sbc._svd import left_to_right_svd_sweep
-
 
 
 ############################
