@@ -19,7 +19,7 @@ import tensornetwork as tn
 
 
 # For converting base-4 variables to Ising spin pairs.
-from sbc._base4 import base_4_to_ising_pair
+import sbc._base4
 
 
 
@@ -75,6 +75,7 @@ class ZFieldPhaseFactorNodeRank2():
 
     def calc_phase(self, r, j_r_m):
         dt = self.dt
+        base_4_to_ising_pair = sbc._base4.base_4_to_ising_pair
         sigma_r_pos1_q, sigma_r_neg1_q = base_4_to_ising_pair(j_r_m)
 
         phase = 0.0
@@ -112,6 +113,7 @@ class ZZCouplerPhaseFactorNodeRank2():
 
     def calc_phase(self, r, j_r_m, j_rP1_m):
         dt = self.dt
+        base_4_to_ising_pair = sbc._base4.base_4_to_ising_pair
         sigma_r_pos1_q, sigma_r_neg1_q = base_4_to_ising_pair(j_r_m)
         sigma_rP1_pos1_q, sigma_rP1_neg1_q = base_4_to_ising_pair(j_rP1_m)
         
@@ -152,6 +154,7 @@ class ZZCouplerPhaseFactorNodeRank4():
 
     def calc_phase(self, r, j_r_m, j_rP1_m):
         dt = self.dt
+        base_4_to_ising_pair = sbc._base4.base_4_to_ising_pair
         sigma_r_pos1_q, sigma_r_neg1_q = base_4_to_ising_pair(j_r_m)
         sigma_rP1_pos1_q, sigma_rP1_neg1_q = base_4_to_ising_pair(j_rP1_m)
         

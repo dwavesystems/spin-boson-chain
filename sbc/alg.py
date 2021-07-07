@@ -56,32 +56,42 @@ class Params():
     ----------
     dt : `float`
         The simulation time step size. Expected to be positive.
-    influence_compress_params : :class:`sbc.compress.Params`
-        The parameters used in compressing the MPS's representing the local path
-        influence functionals.
-    state_compress_params : :class:`sbc.compress.Params`
-        The parameters used in compressing the MPS representing the system's 
-        state, i.e. the system's reduced density matrix. If the system consists 
-        of a single-spin, then ``state_compress_params`` is ignored as it is not
-        needed/used.
+    temporal_compress_params : :class:`sbc.compress.Params`
+        The parameters used in compressing MPS's that span time, e.g. the MPS's
+        representing local path influence functionals
+    spatial_compress_params : `None` | :class:`sbc.compress.Params`
+        The parameters used in compressing MPS's that span space, e.g. the MPS
+        representing the system's state, i.e. the system's reduced density 
+        matrix. If the system consists of a single-spin, then 
+        ``spatial_compress_params`` is effectively ignored as it is not 
+        needed/used. In this case, one need not specify 
+        ``spatial_compress_params``. By default, ``spatial_compress_params`` is 
+        set to ``temporal_compress_params``.
 
     Attributes
     ----------
     dt : `float`, read-only
         The simulation time step size.
-    influence_compress_params : :class:`sbc.compress.Params`, read-only
-        The parameters used in compressing the MPS's representing the local path
-        influence functionals.
-    state_compress_params : :class:`sbc.compress.Params`, read-only
-        The parameters used in compressing the MPS representing the system's 
-        state, i.e. the system's reduced density matrix.
+    temporal_compress_params : :class:`sbc.compress.Params`, read-only
+        The parameters used in compressing MPS's that span time, e.g. the MPS's
+        representing local path influence functionals
+    spatial_compress_params : :class:`sbc.compress.Params`, read-only
+        The parameters used in compressing MPS's that span space, e.g. the MPS
+        representing the system's state, i.e. the system's reduced density 
+        matrix.
     """
-    def __init__(self, dt, influence_compress_params, state_compress_params):
+    def __init__(self,
+                 dt,
+                 temporal_compress_params,
+                 spatial_compress_params=None):
         if dt <= 0.0:
             raise ValueError("The parameter `dt` must be a positive number.")
         
         self.dt = dt
-        self.influence_compress_params = influence_compress_params
-        self.state_compress_params = state_compress_params
+        self.temporal_compress_params = temporal_compress_params
+
+        self.spatial_compress_params = (temporal_compress_params
+                                        if spatial_compress_params is None
+                                        else spatial_compress_params)
 
         return None

@@ -19,6 +19,11 @@ import tensornetwork as tn
 
 
 
+# For switching the ``tensornetwork`` backend.
+import sbc._backend
+
+
+
 ############################
 ## Authorship information ##
 ############################
@@ -137,9 +142,9 @@ def split_node_full_svd(node, left_edges, right_edges, compress_params):
     # be performed on CPUs as it is currently faster than on GPUs.
     original_backend_name = node.backend.name
     if original_backend_name != "numpy":
-        tf_to_np_backend(node)
+        sbc._backend.tf_to_np(node)
         
-    if compress_params == None:
+    if compress_params is None:
         max_num_singular_values = None
         max_trunc_err = None
         svd_rel_tol = None
@@ -173,9 +178,9 @@ def split_node_full_svd(node, left_edges, right_edges, compress_params):
 
     # Switch back to original backend (if different from numpy).
     if original_backend_name != "numpy":
-        np_to_tf_backend(U)
-        np_to_tf_backend(S)
-        np_to_tf_backend(V_dagger)
+        sbc._backend.np_to_tf(U)
+        sbc._backend.np_to_tf(S)
+        sbc._backend.np_to_tf(V_dagger)
 
     return U, S, V_dagger
 
@@ -186,7 +191,7 @@ def split_node_qr(node, left_edges, right_edges):
     # performed on CPUs as it is currently faster than on GPUs.
     original_backend_name = node.backend.name
     if original_backend_name != "numpy":
-        tf_to_np_backend(node)
+        sbc._backend.tf_to_np(node)
 
     Q, R = tn.split_node_qr(node=node,
                             left_edges=left_edges,
@@ -196,8 +201,8 @@ def split_node_qr(node, left_edges, right_edges):
 
     # Switch back to original backend (if different from numpy).
     if original_backend_name != "numpy":
-        np_to_tf_backend(Q)
-        np_to_tf_backend(R)
+        sbc._backend.np_to_tf(Q)
+        sbc._backend.np_to_tf(R)
 
     return Q, R
 
@@ -249,19 +254,3 @@ def split_node_full_svd_backup(node,
     V_dagger = tn.Node(V_dagger[:cutoff_idx, :].reshape(new_V_dagger_shape))
 
     return U, S, V_dagger
-        
-
-
-def tf_to_np_backend(node):
-    node.backend = tn.backends.backend_factory.get_backend("numpy")
-    node.tensor = node.tensor.numpy()  # Converts to numpy array.
-
-    return None
-
-
-
-def np_to_tf_backend(node):
-    node.backend = tn.backends.backend_factory.get_backend("tensorflow")
-    node.tensor = node.backend.convert_to_tensor(node.tensor)
-
-    return None

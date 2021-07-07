@@ -13,18 +13,25 @@ import gc
 
 
 
+# For general array handling.
+import numpy as np
+
+# For creating tensor networks.
+import tensornetwork as tn
+
+
+
 # For calculating the total two-point influence function.
 import sbc._influence.twopt
 
 # For creating influence nodes and MPOs used to calculate the influence path.
-from sbc._influence.tensorfactory import InfluenceNodeRank3
-from sbc._influence.tensorfactory import InfluenceMPO
+import sbc._influence.tensorfactory
 
 # For applying MPO's to MPS's.
-from sbc._mpomps import apply_mpo_to_mps_and_compress
+import sbc._mpomps
 
 # For shifting orthogonal centers of MPS's.
-from sbc._svd import shift_orthogonal_center_to_the_right
+import sbc._svd
 
 
 
@@ -77,6 +84,9 @@ class Path():
                                                                bath_model,
                                                                dt,
                                                                pkl_parts)
+
+        InfluenceNodeRank3 = sbc._influence.tensorfactory.InfluenceNodeRank3
+        InfluenceMPO = sbc._influence.tensorfactory.InfluenceMPO
         self.influence_node_rank_3_factory = \
             InfluenceNodeRank3(total_two_point_influence)
         self.influence_mpo_factory = \
@@ -196,25 +206,24 @@ class Path():
     def m2_step(self):
         m2 = self.pkl_part.m2
         n = self.pkl_part.n
-        compress_params = self.pkl_part.compress_params
 
         if m2 <= self.max_m2_in_first_iteration_procedure(n):
             mps_nodes = self.pkl_part.Xi_I_1_2_nodes
         else:
             mps_nodes = self.pkl_part.Xi_I_dashv_2_nodes
 
-        mpo_nodes = self.influence_mpo_factory.build(m2+1, n)
-        apply_mpo_to_mps_and_compress(mpo_nodes,
-                                      mps_nodes,
-                                      compress_params,
-                                      is_infinite=False)
-        
-        node = self.influence_node_rank_3_factory.build(m2+1, n)
+        node = tn.Node(np.ones([1, 4, 1]))
         mps_nodes.append(node)
-        current_orthogonal_center_idx = len(mps_nodes) - 2
-        shift_orthogonal_center_to_the_right(mps_nodes,
-                                             current_orthogonal_center_idx,
-                                             compress_params=None)
+        kwargs = {"nodes": mps_nodes,
+                  "current_orthogonal_center_idx": len(mps_nodes) - 2,
+                  "compress_params": None}
+        sbc._svd.shift_orthogonal_center_to_the_right(**kwargs)
+
+        kwargs = {"mpo_nodes": self.influence_mpo_factory.build(m2+1, n),
+                  "mps_nodes": mps_nodes,
+                  "compress_params": self.pkl_part.compress_params,
+                  "is_infinite": False}
+        sbc._mpomps.apply_mpo_to_mps_and_compress(**kwargs)
 
         if m2 <= self.max_m2_in_first_iteration_procedure(n):
             if self.mu_m_tau(m=m2+2) >= 1:

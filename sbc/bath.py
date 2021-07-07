@@ -81,8 +81,10 @@ scale, :math:`\hat{Q}_{\nu;r}` being a rescaled generalized reservoir force:
 :math:`\nu`-component of the spin at site :math:`r` and the harmonic oscillator 
 at the same site in mode :math:`\epsilon`. 
 
-For finite chains, we set :math:`N=0`, whereas for infinite chains, we take the 
-limit of :math:`N\to\infty`.
+For finite chains, we set :math:`N=0`. For infinite chains, we take the limit of
+:math:`N\to\infty` and restrict ourselves to single-site unit cells
+(:math:`L=1`) for the tensor network algorithm used for infinite chains does not
+scale well for multi-site unit cells.
 
 Rather than specify the bath model parameters :math:`\omega_{\nu; \epsilon}` and
 :math:`\lambda_{\nu;r;\epsilon}`, one can alternatively specify the spectral
@@ -149,21 +151,18 @@ the bath: namely the system-bath coupling energy scales
 # For deep copies of objects.
 import copy
 
-# Import ceiling function.
-from math import ceil
-
 
 
 # For evaluating special math functions.
 import numpy as np
 
 # For evaluating numerically integrals.
-from scipy.integrate import quad
+import scipy.integrate
 
 
 
 # Import class representing time-dependent scalar model parameters.
-from sbc.scalar import Scalar
+import sbc.scalar
 
 
 
@@ -752,7 +751,9 @@ class Model():
     L : `int`
         The number of spin sites in every unit cell. Note that in the case of a 
         finite chain there is only one unit cell, whereas for an infinite chain 
-        there is an arbitrarily large number of unit cells.
+        there is an arbitrarily large number of unit cells. For infinite chains,
+        ``sbc`` can simulate only systems with single-site unit cells 
+        (:math:`L=1`).
     beta : `float`
         The inverse temperature, :math:`\beta=1/(k_B T)`, with :math:`k_B` 
         being the Boltzmann constant and :math:`T` being the temperature.
@@ -908,7 +909,7 @@ class Model():
             attribute = None
             return attribute
 
-        expected_type = Scalar if beta == None else SpectralDensity0T
+        expected_type = sbc.scalar.Scalar if beta == None else SpectralDensity0T
 
         attribute = ctor_param[:]
         elem_already_set = [False] * self.L
@@ -917,13 +918,14 @@ class Model():
                 elem = attribute[idx1]
             
                 if isinstance(elem, expected_type):
-                    updated_elem = (elem if expected_type == Scalar
+                    updated_elem = (elem if expected_type == sbc.scalar.Scalar
                                     else SpectralDensity(elem, beta))
                     attribute[idx1] = updated_elem
                 else:
-                    trivial_updated_elem = (expected_type(elem)
-                                            if expected_type == Scalar
-                                            else _trivial_spectral_density)
+                    trivial_updated_elem = \
+                        (expected_type(elem)
+                         if expected_type == sbc.scalar.Scalar
+                         else _trivial_spectral_density)
                     attribute[idx1] = trivial_updated_elem
 
             for idx2 in range(idx1+1, self.L):
@@ -992,6 +994,7 @@ def noise_strength(spectral_density):
 
     # If zero temperature spectral density, the integrand is zero for all
     # negative frequencies.
+    quad = scipy.integrate.quad
     W = quad(integrand, a=pts[2], b=pts[3], limit=limit)[0]
     if isinstance(spectral_density, (SpectralDensity, SpectralDensityCmpnt)):
         W += quad(integrand, a=pts[0], b=pts[1], limit=limit)[0]
@@ -1030,6 +1033,7 @@ def correlation(t, spectral_density):
 
     # If zero temperature spectral density, the integrand is zero for all
     # negative frequencies.
+    quad = scipy.integrate.quad
     result = quad(integrand, a=pts[2], b=pts[3],
                   limit=limit, weight="cos", wvar=t)[0]
     result -= 1j*quad(integrand, a=pts[2], b=pts[3],

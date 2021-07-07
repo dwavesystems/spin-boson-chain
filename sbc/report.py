@@ -22,10 +22,8 @@ import numpy as np
 
 
 # For calculating instantaneous values of various properties of the spin system.
-from sbc.state import trace, schmidt_spectrum_sum
-from sbc.state import realignment_criterion, spin_config_prob
-from sbc.ev import single_site_spin_op, multi_site_spin_op
-from sbc.ev import nn_two_site_spin_op
+import sbc.state
+import sbc.ev
 
 
 
@@ -402,14 +400,14 @@ def report(system_state, report_params):
     wish_list = report_params.wish_list
 
     if wish_list.state_trace:
-        state_trace = trace(system_state)
+        state_trace = sbc.state.trace(system_state)
         line = np.array([[t, state_trace]])
         filename = 'state-trace.csv'
         with open(output_dir + '/' + filename, 'a', 1) as file_obj:
             np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
 
     if wish_list.schmidt_spectrum_sum or wish_list.realignment_criterion:
-        S_sum = schmidt_spectrum_sum(system_state)
+        S_sum = sbc.state.schmidt_spectrum_sum(system_state)
         if wish_list.schmidt_spectrum_sum:
             line = np.array([[t] + S_sum])
             filename = 'schmidt-spectrum-sum.csv'
@@ -426,7 +424,7 @@ def report(system_state, report_params):
 
     if wish_list.spin_config_probs:
         for i, spin_config in enumerate(wish_list.spin_config_probs):
-            prob = spin_config_prob(spin_config, system_state)
+            prob = sbc.state.spin_config_prob(spin_config, system_state)
             line = np.array([[t, prob]])
             filename = 'spin-config-'+str(i+1)+'.csv'
             with open(output_dir + '/' + filename, 'a', 1) as file_obj:
@@ -445,13 +443,14 @@ def report(system_state, report_params):
         hz = [z_field.eval(t) for z_field in z_fields]
         Jzz = [zz_coupler.eval(t) for zz_coupler in zz_couplers]
 
-        sx = np.array(single_site_spin_op('sx', system_state)).real
+        sx = np.array(sbc.ev.single_site_spin_op('sx', system_state)).real
         sx_precalculated = True
 
-        sz = np.array(single_site_spin_op('sz', system_state)).real
+        sz = np.array(sbc.ev.single_site_spin_op('sz', system_state)).real
         sz_precalculated = True
         
-        sz_sz = np.array(nn_two_site_spin_op('sz', 'sz', system_state)).real
+        sz_sz = \
+            np.array(sbc.ev.nn_two_site_spin_op('sz', 'sz', system_state)).real
         sz_sz = np.real(sz_sz)
         sz_sz_precalculated = True
         
@@ -474,8 +473,8 @@ def report(system_state, report_params):
                 ev_of_op = sz
 
             else:
-                ev_of_op = np.array(single_site_spin_op(op_string,
-                                                        system_state))
+                ev_of_op = np.array(sbc.ev.single_site_spin_op(op_string,
+                                                               system_state))
                 
 
             if _is_hermitian([op_string]):
@@ -497,7 +496,8 @@ def report(system_state, report_params):
                 ev_of_op = sz_sz
                     
             else:
-                ev_of_op = np.array(nn_two_site_spin_op(op_string_pair[0],
+                ev_of_op = \
+                    np.array(sbc.ev.nn_two_site_spin_op(op_string_pair[0],
                                                         op_string_pair[1],
                                                         system_state))
 
@@ -516,7 +516,7 @@ def report(system_state, report_params):
 
     if wish_list.ev_of_multi_site_spin_ops:
         for i, op_strings in enumerate(wish_list.ev_of_multi_site_spin_ops):
-            ev_of_op = multi_site_spin_op(op_strings, system_state)
+            ev_of_op = sbc.ev.multi_site_spin_op(op_strings, system_state)
 
             if _is_hermitian(op_strings):
                 fmt = 'f8, f8'

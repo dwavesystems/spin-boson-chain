@@ -18,13 +18,13 @@ from math import factorial
 import numpy as np
 
 # For evaluating numerically integrals.
-from scipy.integrate import quad
+import scipy.integrate
 
 
 
-# Import a trivial instance of the ``sbc.bath.SpectralDensity`` class that
+# For importing trivial instances of the ``sbc.bath.SpectralDensity`` class that
 # always evaluates to zero.
-from sbc.bath import _trivial_spectral_density
+import sbc.bath
 
 
 
@@ -49,12 +49,12 @@ class Eta():
     def __init__(self, r, bath_model, dt, spin_basis):
         if spin_basis == "y":
             if bath_model.y_spectral_densities == None:
-                self.A_v_r_T = _trivial_spectral_density
+                self.A_v_r_T = sbc.bath._trivial_spectral_density
             else:
                 self.A_v_r_T = bath_model.y_spectral_densities[r]
         elif spin_basis == "z":
             if bath_model.z_spectral_densities == None:
-                self.A_v_r_T = _trivial_spectral_density
+                self.A_v_r_T = sbc.bath._trivial_spectral_density
             else:
                 self.A_v_r_T = bath_model.z_spectral_densities[r]
         self.dt = dt
@@ -156,6 +156,7 @@ class Eta():
         pt2 = self.integration_pts[a+1]
         integrand = lambda omega: (A_v_r_T_cmpnt._eval(omega)
                                    * F(omega) / 2.0 / pi)
+        quad = scipy.integrate.quad
         result = quad(integrand, a=pt1, b=pt2, limit=self.min_limit)[0]
 
         return result
@@ -171,6 +172,7 @@ class Eta():
         pt2 = self.integration_pts[a+1]
         integrand = lambda omega: (sign_prefactor * A_v_r_T_cmpnt._eval(omega)
                                    / omega / omega / 2.0 / pi)
+        quad = scipy.integrate.quad
         if W_var == 0:
             result = quad(integrand, a=pt1, b=pt2, limit=self.min_limit)[0]
         else:
@@ -209,6 +211,7 @@ class Eta():
         pt2 = self.integration_pts[a+1]
         integrand = lambda omega: (A_v_r_T_cmpnt._eval(omega)
                                    * F(omega) / 2.0 / pi)
+        quad = scipy.integrate.quad
         result = quad(integrand, a=pt1, b=pt2, limit=self.min_limit)[0]
 
         return result
@@ -229,6 +232,7 @@ class Eta():
         pt2 = self.integration_pts[a+1]
         integrand = lambda omega: (sign_prefactor * A_v_r_T_cmpnt._eval(omega)
                                    / omega / omega / 2.0 / pi)
+        quad = scipy.integrate.quad
         result = quad(integrand, a=pt1, b=pt2, weight="sin", wvar=W_var,
                       limit=self.min_limit*int(abs((pt2-pt1)/pt1)+1))[0]
 

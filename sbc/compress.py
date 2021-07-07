@@ -71,7 +71,9 @@ class Params():
     representing a local path influence functional, however it is likely to
     be too costly for a MPS that spans space (e.g. one representing the system
     state) rather than time (e.g. a local path influence functional). It is
-    recommended to consider only this feature for MPS's spanning time.
+    recommended to consider only this feature for MPS's spanning time. Moreover,
+    this variational compression feature is not available infinite MPS's
+    spanning space.
 
     For more information on local path influence functionals, and the tensor
     network (TN) algorithm used to calculate the system's state, see our 
@@ -79,6 +81,19 @@ class Params():
 
     Parameters
     ----------
+    method : ``"zip-up"`` | ``"direct"``, optional
+        The method used to apply a MPO to a MPS with subsequent compression.
+        If ``method="zip-up"`` (i.e. the default value) then the zip-up method 
+        is used (see e.g. Ref. [Paeckel1]_ for a discussion of the method). If 
+        ``method="direct"`` then the MPO is directly applied to the MPS,
+        followed by a full SVD truncation sweep that goes from right to left, 
+        then left to right. The zip-up method is faster, though it may be 
+        somewhat less accurate. The smaller your timestep, the more accurate the
+        zip-up method will be compared to the direct method. If one subsequently
+        applies one or more variational compression sweeps, then it should not 
+        matter much whether the zip-up or the direct method is used. For finite
+        MPS's, we recommend using the zip-up method, followed by one or more
+        variational sweeps.
     max_num_singular_values : `None` | `int`, optional
         The maximum number of singular values to keep in a SVD.
     max_trunc_err : `None` | `float`, optional
@@ -92,10 +107,10 @@ class Params():
         performed. If not set to `None`, ``svd_rel_tol`` is expected to be 
         positive.
     max_num_var_sweeps : `int`, optional
-        The maximum number of variational compression sweeps to perform. Note
-        that a single sweep goes right to left, then left to right. If
-        ``max_num_var_sweeps=0`` and/or the MPS is infinite, then no sweeps are 
-        performed.
+        The maximum number of additional variational compression sweeps to 
+        perform. Note that a single sweep goes right to left, then left to 
+        right. If ``max_num_var_sweeps=0`` and/or the MPS is infinite, then no 
+        sweeps are performed.
     var_rel_tol : `float`, optional
         To check the accuracy of the variational compression, we track
 
@@ -113,6 +128,8 @@ class Params():
 
     Attributes
     ----------
+    method : ``"zip-up"`` | ``"direct"``, read-only
+        The method used to apply a MPO to a MPS with subsequent compression.
     max_num_singular_values : `None` | `int`, read-only
         The maximum number of singular values to keep in a SVD.
     max_trunc_err : `None` | `float`, read-only
@@ -126,9 +143,10 @@ class Params():
         performed. If not set to `None`, ``svd_rel_tol`` is expected to be 
         positive.
     max_num_var_sweeps : `int`, read-only
-        The maximum number of variational compression sweeps to perform. Note
-        that a single sweep goes right to left, then left to right. If
-        ``max_num_var_sweeps=0`` and/or the MPS is infinite, then no sweeps are 
+        The maximum number of additional variational compression sweeps to 
+        perform. Note that a single sweep goes right to left, then left to 
+        right. If ``max_num_var_sweeps=0`` and/or the MPS is infinite, then no 
+        sweeps are 
     var_rel_tol : `float`, optional
         To check the accuracy of the variational compression, we track
 
@@ -145,34 +163,34 @@ class Params():
         compressed MPS.
     """
     def __init__(self,
+                 method="zip-up",
                  max_num_singular_values=None,
                  max_trunc_err=None,
                  svd_rel_tol=None,
                  max_num_var_sweeps=0,
                  var_rel_tol=1e-6):
+        if (method != "zip-up") and (method != "direct"):
+            raise ValueError(_params_init_err_msg_1)
+            
         if max_num_singular_values is not None:
             if max_num_singular_values < 1:
-                raise ValueError("The parameter `max_num_singular_values` must "
-                                 "be a positive integer or set to type `None`.")
+                raise ValueError(_params_init_err_msg_2)
 
         if max_trunc_err is not None:
             if max_trunc_err < 0:
-                raise ValueError("The parameter `max_trunc_err` must be a "
-                                 "non-negative number or set to type `None`.")
+                raise ValueError(_params_init_err_msg_3)
 
         if svd_rel_tol is not None:
             if svd_rel_tol <= 0:
-                raise ValueError("The parameter `svd_rel_tol` must be a "
-                                 "positive number or set to type `None`.")
+                raise ValueError(_params_init_err_msg_4)
 
         if max_num_var_sweeps < 0:
-            raise ValueError("The parameter `max_num_var_sweeps` must be a "
-                             "non-negative number.")
+            raise ValueError(_params_init_err_msg_5)
 
         if var_rel_tol <= 0:
-            raise ValueError("The parameter `var_rel_tol` must be a "
-                             "positive number.")
-        
+            raise ValueError(_params_init_err_msg_6)
+
+        self.method = method
         self.max_num_singular_values = max_num_singular_values
         self.max_trunc_err = max_trunc_err
         self.svd_rel_tol = svd_rel_tol
@@ -180,3 +198,21 @@ class Params():
         self.var_rel_tol = var_rel_tol
 
         return None
+
+
+
+_params_init_err_msg_1 = \
+    ("The parameter `method` must be set to either 'zip-up' or 'direct'.")
+_params_init_err_msg_2 = \
+    ("The parameter `max_num_singular_values` must be a positive integer or "
+     "set to type `None`.")
+_params_init_err_msg_3 = \
+    ("The parameter `max_trunc_err` must be a non-negative number or set to "
+     "type `None`.")
+_params_init_err_msg_4 = \
+    ("The parameter `svd_rel_tol` must be a positive number or set to type "
+     "`None`.")
+_params_init_err_msg_5 = \
+    ("The parameter `max_num_var_sweeps` must be a non-negative number.")
+_params_init_err_msg_6 = \
+    ("The parameter `var_rel_tol` must be a positive number.")

@@ -49,13 +49,15 @@ transverse field energy scale for site :math:`r` at time :math:`t`,
 between sites :math:`r` and :math:`r+1` at time :math:`t`, and :math:`L` being
 the number of sites in every 'unit cell'.
 
-For finite chains, we set :math:`N=0` and :math:`J_{z,z;L-1,L}\left(t\right)=0`,
-whereas for infinite chains, we take the limit of :math:`N\to\infty`.
+For finite chains, we set :math:`N=0` and :math:`J_{z,z;L-1,L}\left(t\right)=0`.
+For infinite chains, we take the limit of :math:`N\to\infty` and restrict
+ourselves to single-site unit cells (:math:`L=1`) for the tensor network
+algorithm used for infinite chains does not scale well for multi-site unit 
+cells.
 
 This module defines a class for specifying all the model parameters of the 
 system, namely the :math:`h_{z; r}(t)`, :math:`h_{x; r}(t)`, and 
 :math:`J_{z, z; r, r+1}(t)`.
-
 """
 
 
@@ -65,7 +67,7 @@ system, namely the :math:`h_{z; r}(t)`, :math:`h_{x; r}(t)`, and
 #####################################
 
 # Import class representing time-dependent scalar model parameters.
-from sbc.scalar import Scalar
+import sbc.scalar
 
 
 
@@ -125,7 +127,8 @@ class Model():
 
     For finite chains, we assume one unit cell (i.e. the :math:`u=0` cell) and
     set :math:`J_{z,z;L-1,L}\left(t\right)=0`, whereas for infinite chains, we
-    take the limit of the number of unit cells to infinity.
+    take the limit of the number of unit cells to infinity but restrict
+    ourselves to single-site unit cells (:math:`L=1`).
 
     Parameters
     ----------
@@ -218,10 +221,14 @@ class Model():
 
         if len(candidate_Ls) == 0:
             L = 1 + int(is_infinite)
+            # L = 1
         elif len(candidate_Ls) != 1:
             raise IndexError(_model_determine_L_err_msg_1)
         else:
             L = candidate_Ls.pop()
+            # if is_infinite and (L > 1):
+            if is_infinite and (L != 2):
+                raise IndexError(_model_determine_L_err_msg_2)
 
         return L
 
@@ -236,8 +243,8 @@ class Model():
         attribute = ctor_param[:]
         elem_already_set = [False] * self.L
         for idx1 in range(0, array_size):
-            if not isinstance(attribute[idx1], Scalar):
-                attribute[idx1] = Scalar(attribute[idx1])
+            if not isinstance(attribute[idx1], sbc.scalar.Scalar):
+                attribute[idx1] = sbc.scalar.Scalar(attribute[idx1])
             for idx2 in range(idx1+1, array_size):
                 if ctor_param[idx2] == ctor_param[idx1]:
                     attribute[idx2] = attribute[idx1]
@@ -261,3 +268,6 @@ class Model():
 _model_determine_L_err_msg_1 = \
     ("Parameters ``z_fields``, ``x_fields``, and ``zz_couplers`` are of "
      "incompatible dimensions.")
+_model_determine_L_err_msg_2 = \
+    ("For infinite systems, ``sbc`` can simulate only systems with single-site "
+     "unit cells.")

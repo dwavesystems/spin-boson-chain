@@ -10,19 +10,19 @@ occur in our QUAPI-TN approach.
 #####################################
 
 # Import a few math functions.
-from math import ceil, cos, sin
-from cmath import exp
+import math
+import cmath
 
 
 
 # Import class representing time-dependent scalar model parameters.
-from sbc.scalar import Scalar
+import sbc.scalar
 
 # For evaluating eta-functions.
-from sbc._influence.eta import Eta
+import sbc._influence.eta
 
 # For converting base-4 variables to Ising spin pairs.
-from sbc._base4 import base_4_to_ising_pair
+import sbc._base4
 
 
 
@@ -50,9 +50,9 @@ class BathPklPart():
         self.spin_basis = spin_basis
 
         tau = bath_model.memory
-        self.K_tau = max(0, ceil((tau - 7.0*dt/4.0) / dt)) + 3
+        self.K_tau = max(0, math.ceil((tau - 7.0*dt/4.0) / dt)) + 3
 
-        eta = Eta(r, bath_model, dt, spin_basis)
+        eta = sbc._influence.eta.Eta(r, bath_model, dt, spin_basis)
 
         # For caching purposes.
         self.calc_eta_caches(eta)
@@ -152,14 +152,14 @@ class Bath():
         if spin_basis == "y":
             y_coupling_energy_scales = bath_model.y_coupling_energy_scales
             if y_coupling_energy_scales == None:
-                self.coupling_energy_scale = Scalar(0.0)
+                self.coupling_energy_scale = sbc.scalar.Scalar(0.0)
             else:
                 self.coupling_energy_scale = y_coupling_energy_scales[r]
             self.l_idx_pairs_selector = self.l_idx_pairs_selector_for_y_noise
         elif spin_basis == "z":
             z_coupling_energy_scales = bath_model.z_coupling_energy_scales
             if z_coupling_energy_scales == None:
-                self.coupling_energy_scale = Scalar(0.0)
+                self.coupling_energy_scale = sbc.scalar.Scalar(0.0)
             else:
                 self.coupling_energy_scale = z_coupling_energy_scales[r]
             self.l_idx_pairs_selector = self.l_idx_pairs_selector_for_z_noise
@@ -249,7 +249,8 @@ class Bath():
 
     def eval(self, j_r_m1, j_r_m2):
         result = 1.0
-        
+
+        base_4_to_ising_pair = sbc._base4.base_4_to_ising_pair
         sigma_r_pos1_q1, sigma_r_neg1_q1 = base_4_to_ising_pair(j_r_m1)
         sigma_r_pos1_q2, sigma_r_neg1_q2 = base_4_to_ising_pair(j_r_m2)
 
@@ -263,7 +264,7 @@ class Bath():
                      * (sigma_r_pos1_q2-sigma_r_neg1_q2)
                      * ((sigma_r_pos1_q1-sigma_r_neg1_q1) * eta.real
                          + 1.0j * (sigma_r_pos1_q1+sigma_r_neg1_q1) * eta.imag))
-            result *= exp(-gamma)
+            result *= cmath.exp(-gamma)
 
         return result
 
@@ -287,8 +288,8 @@ class TF():
         h_x_r_k = self.x_field.eval(t=k*dt)
         theta_r_n_k = 2 * dt * w_n_k * h_x_r_k
 
-        self.cos_cache = cos(theta_r_n_k / 2)
-        self.sin_cache = sin(theta_r_n_k / 2)
+        self.cos_cache = math.cos(theta_r_n_k / 2)
+        self.sin_cache = math.sin(theta_r_n_k / 2)
 
         return None
 
@@ -300,6 +301,7 @@ class TF():
         cos_cache = self.cos_cache
         sin_cache = self.sin_cache
 
+        base_4_to_ising_pair = sbc._base4.base_4_to_ising_pair
         sigma_r_pos1_q1, sigma_r_neg1_q1 = base_4_to_ising_pair(j_r_m1)
         sigma_r_pos1_q2, sigma_r_neg1_q2 = base_4_to_ising_pair(j_r_m2)
 
@@ -322,6 +324,7 @@ class YZ():
     
 
     def eval(self, j_r_m1, j_r_m2):
+        base_4_to_ising_pair = sbc._base4.base_4_to_ising_pair
         sigma_r_pos1_q1, sigma_r_neg1_q1 = base_4_to_ising_pair(j_r_m1)
         sigma_r_pos1_q2, sigma_r_neg1_q2 = base_4_to_ising_pair(j_r_m2)
 
@@ -341,6 +344,7 @@ class ZY():
     
 
     def eval(self, j_r_m1, j_r_m2):
+        base_4_to_ising_pair = sbc._base4.base_4_to_ising_pair
         sigma_r_pos1_q1, sigma_r_neg1_q1 = base_4_to_ising_pair(j_r_m1)
         sigma_r_pos1_q2, sigma_r_neg1_q2 = base_4_to_ising_pair(j_r_m2)
 

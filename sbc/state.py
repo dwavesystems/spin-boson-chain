@@ -30,8 +30,10 @@ energies associated with the components of the bosonic environment; and
 :math:`\hat{H}_{u}\left(t\right)`, which describes all energies associated with
 the coupling between the system and the environment.
 
-For finite chains, we set :math:`N=0`, whereas for infinite chains, we take the 
-limit of :math:`N\to\infty`.
+For finite chains, we set :math:`N=0`. For infinite chains, we take the limit of
+:math:`N\to\infty` and restrict ourselves to single-site unit cells
+(:math:`L=1`) for the tensor network algorithm used for infinite chains does not
+scale well for multi-site unit cells.
 
 The full state operator at time :math:`t` can be expressed as:
 
@@ -127,8 +129,8 @@ state.
 ## Load libraries/packages/modules ##
 #####################################
 
-# Import a few math functions.
-from math import ceil
+# For using the ceiling function.
+import math
 
 # For explicitly releasing memory.
 import gc
@@ -153,16 +155,19 @@ import tensornetwork as tn
 
 
 # For creating nodes relating to the phase factors in the QUAPI path integral.
-from sbc._phasefactor import tensorfactory
+import sbc._phasefactor
 
 # For creating influence paths/functionals.
-from sbc import _influence
+import sbc._influence
 
-# For performing SVD truncation sweeps.
-from sbc import _svd
+# For performing SVD truncation sweeps, QR factorizations, and single-node SVDs.
+import sbc._svd
 
 # For applying MPO's to MPS's.
-from sbc._mpomps import apply_mpo_to_mps_and_compress
+import sbc._mpomps
+
+# For switching the ``tensornetwork`` backend.
+import sbc._backend
 
 
 
@@ -227,6 +232,8 @@ class _SystemStatePklPart():
 
         # For caching purposes.
         self.Xi_rho = None
+        # self.V_R = None
+        # self.V_L = None
         self.trace = None
         self.transfer_matrix = None
         self.dominant_eigval = None
@@ -267,10 +274,32 @@ class _SystemStatePklPart():
                 
             rho_nodes.append(new_node)
 
-        kwargs = {"nodes": rho_nodes,
-                  "compress_params": None,
-                  "is_infinite": self.is_infinite}
-        self.schmidt_spectrum = _svd.left_to_right_svd_sweep(**kwargs)
+        # if self.is_infinite:
+        #     rho_node = rho_nodes[0]
+        #     kwargs = {"node": rho_node,
+        #               "left_edges": (rho_node[0], rho_node[1]),
+        #               "right_edges": (rho_node[2],),
+        #               "compress_params": None}
+        #     U, S, V_dagger = sbc._svd.split_node_full_svd(**kwargs)
+        #     new_rho_node = tn.ncon((V_dagger, U), ((-1, 1), (1, -2, -3)))
+        #     self.schmidt_spectrum = [S]
+        #     self.nodes = None  # Calculate in SystemState.__init__(...).
+        #     self.Gamma = new_rho_node  # Gamma defined in PRB 78, 155117 (2008).
+        #     self.S = S  # The (Gamma, S) pair is only used for infinite case.
+        # else:
+        #     kwargs = {"nodes": rho_nodes,
+        #               "compress_params": None,
+        #               "is_infinite": self.is_infinite}
+        #     self.schmidt_spectrum = sbc._svd.left_to_right_svd_sweep(**kwargs)
+        #     self.nodes = rho_nodes
+
+        if self.is_infinite:
+            self.schmidt_spectrum = None
+        else:
+            kwargs = {"nodes": rho_nodes,
+                      "compress_params": None,
+                      "is_infinite": self.is_infinite}
+            self.schmidt_spectrum = sbc._svd.left_to_right_svd_sweep(**kwargs)
         self.nodes = rho_nodes
 
         return None
@@ -401,6 +430,7 @@ class SystemState():
         self.alg_params = alg_params
 
         dt = alg_params.dt
+        tensorfactory = sbc._phasefactor.tensorfactory
         self._z_field_phase_factor_node_rank_2_factory = \
             tensorfactory.ZFieldPhaseFactorNodeRank2(system_model, dt)
         self._zz_coupler_phase_factor_node_rank_2_factory = \
@@ -408,7 +438,7 @@ class SystemState():
 
         self.t = 0
         tau = bath_model.memory
-        K_tau = max(0, ceil((tau - 7.0*dt/4.0) / dt)) + 3
+        K_tau = max(0, math.ceil((tau - 7.0*dt/4.0) / dt)) + 3
         self._max_k_in_first_iteration_procedure = lambda n: (n-K_tau)-1
         self._max_k_in_second_iteration_procedure = lambda n: n
 
@@ -429,6 +459,18 @@ class SystemState():
         self._pkl_part.update_sub_pkl_part_sets(self._unique_influence_paths)
         
         if self.system_model.is_infinite:
+            # mps_nodes = [self._pkl_part.Gamma, self._pkl_part.S]
+            # kwargs = {"mps_nodes": mps_nodes, "compress_params": None}
+            # sbc._mpomps.canonicalize_and_compress_infinite_mps(**kwargs)
+
+            # Gamma, S = mps_nodes
+            # sqrt_S = tn.Node(np.sqrt(S.tensor))
+            # M = tn.ncon((sqrt_S, Gamma, sqrt_S), ((-1, 1), (1, -2, 2), (2, -3)))
+            
+            # self._pkl_part.nodes = [M]
+            # self._pkl_part.Xi_rho_vdash = self._pkl_part.nodes
+            # self._pkl_part.Gamma = mps_nodes[0]
+            # self._pkl_part.S = mps_nodes[1]
             self._update_infinite_chain_alg_attrs()
 
         self.nodes = self._pkl_part.nodes
@@ -448,17 +490,17 @@ class SystemState():
         bath_model = self.bath_model
         L = system_model.L
         dt = pkl_part.alg_params.dt
-        influence_compress_params = \
-            pkl_part.alg_params.influence_compress_params
+        temporal_compress_params = \
+            pkl_part.alg_params.temporal_compress_params
 
         sub_pkl_part_sets = pkl_part.sub_pkl_part_sets
         self._unique_influence_paths = \
-            {r: _influence.path.Path(r,
-                                     system_model,
-                                     bath_model,
-                                     dt,
-                                     influence_compress_params,
-                                     pkl_parts=sub_pkl_part_sets.get(r))
+            {r: sbc._influence.path.Path(r,
+                                         system_model,
+                                         bath_model,
+                                         dt,
+                                         temporal_compress_params,
+                                         pkl_parts=sub_pkl_part_sets.get(r))
              for r in site_indices_of_unique_influence_paths}
         
         self._influence_paths = [None]*L
@@ -606,10 +648,6 @@ class SystemState():
     def _k_step(self):
         k = self._pkl_part.k
         n = self._pkl_part.n
-        alg = self._pkl_part.alg
-        L = self.system_model.L
-        num_couplers = len(self.system_model.zz_couplers)
-        state_compress_params = self._pkl_part.alg_params.state_compress_params
         is_infinite = self.system_model.is_infinite
 
         if k <= self._max_k_in_first_iteration_procedure(n):
@@ -617,15 +655,29 @@ class SystemState():
         else:
             rho_nodes = self._pkl_part.Xi_rho
 
-        mpo_nodes = self._build_mpo_nodes()
-        apply_mpo_to_mps_and_compress(mpo_nodes,
-                                      rho_nodes,
-                                      state_compress_params,
-                                      is_infinite)
+        # if is_infinite:
+        #     mps_nodes = [self._pkl_part.Gamma, self._pkl_part.S]
+        # else:
+        #     mps_nodes = rho_nodes
+            
+        kwargs = {"mpo_nodes": self._build_mpo_nodes(),
+                  # "mps_nodes": mps_nodes,
+                  "mps_nodes": rho_nodes,
+                  "compress_params": self.alg_params.spatial_compress_params,
+                  "is_infinite": is_infinite}
+        sbc._mpomps.apply_mpo_to_mps_and_compress(**kwargs)
 
+        # if is_infinite:
+        #     Gamma, S = mps_nodes
+        #     sqrt_S = tn.Node(np.sqrt(S.tensor))
+        #     M = tn.ncon((sqrt_S, Gamma, sqrt_S), ((-1, 1), (1, -2, 2), (2, -3)))
+        #     rho_nodes[0] = M
+        #     self._pkl_part.Gamma = Gamma
+        #     self._pkl_part.S = S
+        
         if k > self._max_k_in_first_iteration_procedure(n):
             self._pkl_part.influence_nodes_idx += \
-                1 if (k == -1) or (alg == "z-noise") else 3
+                1 if (k == -1) or (self._pkl_part.alg == "z-noise") else 3
 
         if k <= self._max_k_in_first_iteration_procedure(n):
             self._pkl_part.Xi_rho_vdash = rho_nodes
@@ -700,9 +752,10 @@ class SystemState():
         split_zz_coupler_phase_factor_nodes = [None] * (2*L)
         for r in range(num_couplers):
             node = zz_coupler_phase_factor_node_rank_2_factory.build(r, k+1, n)
-            left_node, right_node = _svd.split_node_qr(node=node,
-                                                       left_edges=(node[0],),
-                                                       right_edges=(node[1],))
+            left_node, right_node = \
+                sbc._svd.split_node_qr(node=node,
+                                       left_edges=(node[0],),
+                                       right_edges=(node[1],))
             split_zz_coupler_phase_factor_nodes[(2*r+1)%(2*L)] = left_node
             split_zz_coupler_phase_factor_nodes[(2*r+2)%(2*L)] = right_node
 
@@ -807,7 +860,10 @@ class SystemState():
             network_struct = [(-1, 2), (2, 1, -2), (1,)]
             result = tn.ncon(nodes_to_contract, network_struct)
 
-        self._pkl_part.transfer_matrix = np.array(result.tensor)
+        if result.backend.name != "numpy":
+            sbc._backend.tf_to_np(result)
+            
+        self._pkl_part.transfer_matrix = result.tensor
 
         return None
 
@@ -1118,8 +1174,8 @@ def schmidt_spectrum_sum(system_state, bond_indices=None):
             kwargs = {"nodes": system_state.nodes,
                       "compress_params": None,
                       "is_infinite": system_state._pkl_part.is_infinite}
-            _svd.right_to_left_svd_sweep(**kwargs)
-            schmidt_spectrum = _svd.left_to_right_svd_sweep(**kwargs)
+            sbc._svd.right_to_left_svd_sweep(**kwargs)
+            schmidt_spectrum = sbc._svd.left_to_right_svd_sweep(**kwargs)
             system_state._pkl_part.schmidt_spectrum = schmidt_spectrum  # Cache.
         else:
             schmidt_spectrum = system_state._pkl_part.schmidt_spectrum

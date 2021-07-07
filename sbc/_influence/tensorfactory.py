@@ -73,8 +73,10 @@ class InfluenceNodeRank4():
 
         if total_two_pt_influence.alg == "yz-noise":
             self.mu_m_tau = lambda m: max(0, m-3*K_tau+1)
+            self.max_m2 = lambda n: 3*n+3
         elif total_two_pt_influence.alg == "z-noise":
             self.mu_m_tau = lambda m: max(0, m-K_tau+1)
+            self.max_m2 = lambda n: n+1
 
         return None
 
@@ -91,6 +93,15 @@ class InfluenceNodeRank4():
                 for b_r_m1P1 in range(4):
                     tensor[0, j_r_m1, j_r_m1_prime, b_r_m1P1] = \
                         self.total_two_pt_influence.eval(j_r_m1, b_r_m1P1)
+        elif m1 == m2:
+            shape = [4, 4, 4, 1] if m2 < self.max_m2(n) else [4, 4, 4, 4]
+            tensor = np.zeros(shape, dtype=np.complex128)
+            for j_r_m1 in range(4):
+                j_r_m1_prime = j_r_m1
+                b_r_m1 = j_r_m1
+                b_r_m1P1 = 0 if m2 < self.max_m2(n) else j_r_m1
+                tensor[b_r_m1, j_r_m1, j_r_m1_prime, b_r_m1P1] = \
+                    self.total_two_pt_influence.eval(j_r_m1, j_r_m1)
         else:
             tensor = np.zeros([4, 4, 4, 4], dtype=np.complex128)
             for j_r_m1 in range(4):
@@ -119,7 +130,8 @@ class InfluenceMPO():
         mu_m2_tau = self.influence_node_rank_4_factory.mu_m_tau(m=m2)
         mpo_nodes = []
         
-        for m1 in range(mu_m2_tau, m2):
+        # for m1 in range(mu_m2_tau, m2):
+        for m1 in range(mu_m2_tau, m2+1):
             mpo_node = self.influence_node_rank_4_factory.build(m1, m2, n)
             mpo_nodes.append(mpo_node)
 

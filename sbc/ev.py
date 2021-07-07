@@ -39,9 +39,9 @@ import tensornetwork as tn
 
 
 
-# For creating system state objects.
-from sbc.state import trace
-from sbc.state import _apply_1_legged_nodes_to_system_state_mps
+# For performing system state traces and certain non-trivial tensor network
+# contractions.
+import sbc.state
 
 
 
@@ -181,9 +181,10 @@ def multi_site_spin_op(op_strings, system_state):
         one_legged_node = tn.Node(tensor)
         one_legged_nodes.append(one_legged_node)
 
-    result = _apply_1_legged_nodes_to_system_state_mps(one_legged_nodes,
-                                                       system_state)
-    result = complex(result) / trace(system_state)
+    kwargs = {"physical_1_legged_nodes": one_legged_nodes,
+              "system_state": system_state}
+    result = sbc.state._apply_1_legged_nodes_to_system_state_mps(**kwargs)
+    result = complex(result) / sbc.state.trace(system_state)
 
     return result
 
