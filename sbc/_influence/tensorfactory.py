@@ -130,7 +130,6 @@ class InfluenceMPO():
         mu_m2_tau = self.influence_node_rank_4_factory.mu_m_tau(m=m2)
         mpo_nodes = []
         
-        # for m1 in range(mu_m2_tau, m2):
         for m1 in range(mu_m2_tau, m2+1):
             mpo_node = self.influence_node_rank_4_factory.build(m1, m2, n)
             mpo_nodes.append(mpo_node)

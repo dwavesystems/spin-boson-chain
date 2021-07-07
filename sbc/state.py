@@ -31,9 +31,7 @@ energies associated with the components of the bosonic environment; and
 the coupling between the system and the environment.
 
 For finite chains, we set :math:`N=0`. For infinite chains, we take the limit of
-:math:`N\to\infty` and restrict ourselves to single-site unit cells
-(:math:`L=1`) for the tensor network algorithm used for infinite chains does not
-scale well for multi-site unit cells.
+:math:`N\to\infty`.
 
 The full state operator at time :math:`t` can be expressed as:
 
@@ -232,8 +230,6 @@ class _SystemStatePklPart():
 
         # For caching purposes.
         self.Xi_rho = None
-        # self.V_R = None
-        # self.V_L = None
         self.trace = None
         self.transfer_matrix = None
         self.dominant_eigval = None
@@ -273,25 +269,6 @@ class _SystemStatePklPart():
                 tn.flatten_edges([new_node[0], new_node[1]])
                 
             rho_nodes.append(new_node)
-
-        # if self.is_infinite:
-        #     rho_node = rho_nodes[0]
-        #     kwargs = {"node": rho_node,
-        #               "left_edges": (rho_node[0], rho_node[1]),
-        #               "right_edges": (rho_node[2],),
-        #               "compress_params": None}
-        #     U, S, V_dagger = sbc._svd.split_node_full_svd(**kwargs)
-        #     new_rho_node = tn.ncon((V_dagger, U), ((-1, 1), (1, -2, -3)))
-        #     self.schmidt_spectrum = [S]
-        #     self.nodes = None  # Calculate in SystemState.__init__(...).
-        #     self.Gamma = new_rho_node  # Gamma defined in PRB 78, 155117 (2008).
-        #     self.S = S  # The (Gamma, S) pair is only used for infinite case.
-        # else:
-        #     kwargs = {"nodes": rho_nodes,
-        #               "compress_params": None,
-        #               "is_infinite": self.is_infinite}
-        #     self.schmidt_spectrum = sbc._svd.left_to_right_svd_sweep(**kwargs)
-        #     self.nodes = rho_nodes
 
         if self.is_infinite:
             self.schmidt_spectrum = None
@@ -459,18 +436,6 @@ class SystemState():
         self._pkl_part.update_sub_pkl_part_sets(self._unique_influence_paths)
         
         if self.system_model.is_infinite:
-            # mps_nodes = [self._pkl_part.Gamma, self._pkl_part.S]
-            # kwargs = {"mps_nodes": mps_nodes, "compress_params": None}
-            # sbc._mpomps.canonicalize_and_compress_infinite_mps(**kwargs)
-
-            # Gamma, S = mps_nodes
-            # sqrt_S = tn.Node(np.sqrt(S.tensor))
-            # M = tn.ncon((sqrt_S, Gamma, sqrt_S), ((-1, 1), (1, -2, 2), (2, -3)))
-            
-            # self._pkl_part.nodes = [M]
-            # self._pkl_part.Xi_rho_vdash = self._pkl_part.nodes
-            # self._pkl_part.Gamma = mps_nodes[0]
-            # self._pkl_part.S = mps_nodes[1]
             self._update_infinite_chain_alg_attrs()
 
         self.nodes = self._pkl_part.nodes
@@ -655,26 +620,12 @@ class SystemState():
         else:
             rho_nodes = self._pkl_part.Xi_rho
 
-        # if is_infinite:
-        #     mps_nodes = [self._pkl_part.Gamma, self._pkl_part.S]
-        # else:
-        #     mps_nodes = rho_nodes
-            
         kwargs = {"mpo_nodes": self._build_mpo_nodes(),
-                  # "mps_nodes": mps_nodes,
                   "mps_nodes": rho_nodes,
                   "compress_params": self.alg_params.spatial_compress_params,
                   "is_infinite": is_infinite}
         sbc._mpomps.apply_mpo_to_mps_and_compress(**kwargs)
 
-        # if is_infinite:
-        #     Gamma, S = mps_nodes
-        #     sqrt_S = tn.Node(np.sqrt(S.tensor))
-        #     M = tn.ncon((sqrt_S, Gamma, sqrt_S), ((-1, 1), (1, -2, 2), (2, -3)))
-        #     rho_nodes[0] = M
-        #     self._pkl_part.Gamma = Gamma
-        #     self._pkl_part.S = S
-        
         if k > self._max_k_in_first_iteration_procedure(n):
             self._pkl_part.influence_nodes_idx += \
                 1 if (k == -1) or (self._pkl_part.alg == "z-noise") else 3

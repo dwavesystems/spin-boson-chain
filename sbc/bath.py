@@ -82,9 +82,7 @@ scale, :math:`\hat{Q}_{\nu;r}` being a rescaled generalized reservoir force:
 at the same site in mode :math:`\epsilon`. 
 
 For finite chains, we set :math:`N=0`. For infinite chains, we take the limit of
-:math:`N\to\infty` and restrict ourselves to single-site unit cells
-(:math:`L=1`) for the tensor network algorithm used for infinite chains does not
-scale well for multi-site unit cells.
+:math:`N\to\infty`.
 
 Rather than specify the bath model parameters :math:`\omega_{\nu; \epsilon}` and
 :math:`\lambda_{\nu;r;\epsilon}`, one can alternatively specify the spectral
@@ -751,9 +749,7 @@ class Model():
     L : `int`
         The number of spin sites in every unit cell. Note that in the case of a 
         finite chain there is only one unit cell, whereas for an infinite chain 
-        there is an arbitrarily large number of unit cells. For infinite chains,
-        ``sbc`` can simulate only systems with single-site unit cells 
-        (:math:`L=1`).
+        there is an arbitrarily large number of unit cells. 
     beta : `float`
         The inverse temperature, :math:`\beta=1/(k_B T)`, with :math:`k_B` 
         being the Boltzmann constant and :math:`T` being the temperature.
