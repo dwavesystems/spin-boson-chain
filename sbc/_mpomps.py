@@ -139,7 +139,12 @@ def apply_infinite_mpo_to_infinite_mps_and_compress(mpo_nodes,
                                                     mps_nodes,
                                                     # Lambda_Theta,
                                                     compress_params):
+    # print("before")
+    # for r in range(len(mps_nodes)):
+        # print("mpo_nodes[{}].shape =".format(r), mpo_nodes[r].shape,
+        #       "mps_nodes[{}].shape =".format(r), mps_nodes[r].shape)
     apply_directly_finite_mpo_to_finite_mps(mpo_nodes, mps_nodes)
+    # print("compress_params:", compress_params.__dict__)
     kwargs = {"nodes": mps_nodes,
               "compress_params": None,
               "is_infinite": True,
@@ -147,6 +152,10 @@ def apply_infinite_mpo_to_infinite_mps_and_compress(mpo_nodes,
     sbc._svd.left_to_right_sweep(**kwargs)
     kwargs["compress_params"] = compress_params
     sbc._svd.right_to_left_sweep(**kwargs)
+    # print("after")
+    # for r in range(len(mps_nodes)):
+        # print("mpo_nodes[{}].shape =".format(r), mpo_nodes[r].shape,
+        #       "mps_nodes[{}].shape =".format(r), mps_nodes[r].shape)
 
     return None
 

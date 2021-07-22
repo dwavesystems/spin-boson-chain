@@ -608,7 +608,7 @@ class SystemState():
 
         k_limit = self._max_k_in_first_iteration_procedure(self._pkl_part.n)
         if k > k_limit:
-            print("Foo")
+            # print("Foo")
             self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
             # self._pkl_part.Lambda_Theta = \
             #     copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
@@ -636,7 +636,7 @@ class SystemState():
                     k_step_count = 0
             self._pkl_part.just_recovered = False
             if self._pkl_part.k == k_limit_1+1:
-                print("bar")
+                # print("bar")
                 self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
                 # self._pkl_part.Lambda_Theta = \
                 #     copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
@@ -678,7 +678,7 @@ class SystemState():
         mps_nodes = rho_nodes
         spatial_compress_params = self.alg_params.spatial_compress_params
         if is_infinite:
-            print("(k, n)=({}, {})".format(self._pkl_part.k, self._pkl_part.n))
+            # print("(k, n)=({}, {})".format(self._pkl_part.k, self._pkl_part.n))
             # gates = \
             #     self._build_gates_encoding_effects_of_bath_fields_and_couplers()
             mpo_nodes = \
@@ -700,7 +700,7 @@ class SystemState():
             apply_infinite_mpo_to_infinite_mps_and_compress = \
                 sbc._mpomps.apply_infinite_mpo_to_infinite_mps_and_compress
             apply_infinite_mpo_to_infinite_mps_and_compress(**kwargs)
-            print()
+            # print()
         else:
             mpo_nodes = \
                 self._build_mpo_encoding_effects_of_bath_fields_and_couplers()
@@ -737,7 +737,7 @@ class SystemState():
                 1 if (k == -1) or (self._pkl_part.alg == "z-noise") else 3
 
         if k <= self._max_k_in_first_iteration_procedure(n):
-            print("Hi")
+            # print("Hi")
             self._pkl_part.Xi_rho_vdash = rho_nodes
             # self._pkl_part.Lambda_Theta_vdash = Lambda_Theta
             beg = 1 if (k == -1) or (self._pkl_part.alg == "z-noise") else 3
@@ -745,7 +745,7 @@ class SystemState():
                 influence_path.pkl_part.Xi_I_1_1_nodes = \
                     influence_path.pkl_part.Xi_I_1_1_nodes[beg:]
         else:
-            print("Ho")
+            # print("Ho")
             self._pkl_part.Xi_rho = rho_nodes
             # self._pkl_part.Lambda_Theta = Lambda_Theta
 
@@ -1026,7 +1026,7 @@ class SystemState():
 
         dominant_eigval_idx = np.argmax(np.abs(w))
         self._pkl_part.dominant_eigval = w[dominant_eigval_idx]
-        print("transfer matrix dominant eigval =", self._pkl_part.dominant_eigval)
+        # print("transfer matrix dominant eigval =", self._pkl_part.dominant_eigval)
         
         left_eigvec = vl[:, dominant_eigval_idx]
         right_eigvec = vr[:, dominant_eigval_idx]

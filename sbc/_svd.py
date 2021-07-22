@@ -61,6 +61,7 @@ def left_to_right_sweep(nodes, compress_params, is_infinite, starting_node_idx):
         kwargs["current_orthogonal_center_idx"] = i
         U, S, V_dagger = shift_orthogonal_center_to_the_right(**kwargs)
         truncated_schmidt_spectra.append(S)
+        # print("inside 'left_to_right_sweep'; i={}; mps node shape = ".format(i), nodes[i%num_nodes].shape)
 
     return truncated_schmidt_spectra
 
@@ -80,9 +81,10 @@ def right_to_left_sweep(nodes, compress_params, is_infinite, starting_node_idx):
               "compress_params": compress_params}
     
     for i in range(imax, imin-1, -1):
-        current_orthogonal_center_idx = i
+        kwargs["current_orthogonal_center_idx"] = i
         U, S, V_dagger = shift_orthogonal_center_to_the_left(**kwargs)
         truncated_schmidt_spectra.insert(0, S)
+        # print("inside 'right_to_left_sweep'; i={}; mps node shape = ".format(i), nodes[i%num_nodes].shape)
 
     return truncated_schmidt_spectra
 
