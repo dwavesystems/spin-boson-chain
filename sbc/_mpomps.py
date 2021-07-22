@@ -137,18 +137,18 @@ def apply_gates_to_mps_and_compress(gates,
 #                                                     compress_params):
 def apply_infinite_mpo_to_infinite_mps_and_compress(mpo_nodes,
                                                     mps_nodes,
-                                                    Lambda_Theta,
+                                                    # Lambda_Theta,
                                                     compress_params):
     apply_directly_finite_mpo_to_finite_mps(mpo_nodes, mps_nodes)
-    # kwargs = {"nodes": mps_nodes,
-    #           "compress_params": None,
-    #           "is_infinite": True,
-    #           "starting_node_idx": None}
-    # sbc._svd.left_to_right_sweep(**kwargs)
-    # kwargs["compress_params"] = compress_params
-    # sbc._svd.right_to_left_sweep(**kwargs)
+    kwargs = {"nodes": mps_nodes,
+              "compress_params": None,
+              "is_infinite": True,
+              "starting_node_idx": None}
+    sbc._svd.left_to_right_sweep(**kwargs)
+    kwargs["compress_params"] = compress_params
+    sbc._svd.right_to_left_sweep(**kwargs)
 
-    # return None
+    return None
 
     L = len(mps_nodes)
     for starting_node_idx in range(1):

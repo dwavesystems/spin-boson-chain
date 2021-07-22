@@ -236,7 +236,7 @@ class _SystemStatePklPart():
 
         # For caching purposes.
         self.Xi_rho = None
-        self.Lambda_Theta = []
+        # self.Lambda_Theta = []
         self.trace = None
         self.transfer_matrix = None
         self.dominant_eigval = None
@@ -292,26 +292,28 @@ class _SystemStatePklPart():
 
         # sbc._mpomps.canonicalize_and_compress_infinite_mps(rho_nodes, None)
         if self.is_infinite:
+            pass
+            # rho_nodes_copy = copy.deepcopy(rho_nodes)
             # self.Gammas, self.Lambdas = sbc._svd.vidal_form(**kwargs)
-            self.Lambda_Theta_vdash = sbc._svd.Lambda_Theta_form(rho_nodes, 0)
-            kwargs = {"Lambda_Theta": self.Lambda_Theta_vdash,
-                      "compress_params": None}
-            sbc._mpomps.canonicalize_and_compress_infinite_mps(**kwargs)
-            Lambda = self.Lambda_Theta_vdash[0]
-            Theta_nodes = self.Lambda_Theta_vdash[1]
-            L = len(rho_nodes)
-            rho_nodes[0] = tn.ncon([Lambda, Theta_nodes[0]],
-                                   [(-1, 1), (1, -2, -3)])
-            for r in range(1, L):
-                rho_nodes[r] = Theta_nodes[r]
-            print("start")
-            print("Lambda =", np.diag(Lambda.tensor))
+            # self.Lambda_Theta_vdash = sbc._svd.Lambda_Theta_form(rho_nodes_copy, 0)
+            # kwargs = {"Lambda_Theta": self.Lambda_Theta_vdash,
+            #           "compress_params": None}
+            # sbc._mpomps.canonicalize_and_compress_infinite_mps(**kwargs)
+            # Lambda = self.Lambda_Theta_vdash[0]
+            # Theta_nodes = self.Lambda_Theta_vdash[1]
+            # L = len(rho_nodes)
+            # rho_nodes[0] = tn.ncon([Lambda, Theta_nodes[0]],
+            #                        [(-1, 1), (1, -2, -3)])
+            # for r in range(1, L):
+            #     rho_nodes[r] = Theta_nodes[r]
+            # print("start")
+            # print("Lambda =", np.diag(Lambda.tensor))
         else:
             kwargs = {"nodes": rho_nodes,
                       "compress_params": None,
                       "is_infinite": self.is_infinite,
                       "starting_node_idx": None}
-            self.Lambda_Theta_vdash = []
+            # self.Lambda_Theta_vdash = []
             self.schmidt_spectra = sbc._svd.left_to_right_sweep(**kwargs)
         self.nodes = rho_nodes
 
@@ -608,8 +610,8 @@ class SystemState():
         if k > k_limit:
             print("Foo")
             self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
-            self._pkl_part.Lambda_Theta = \
-                copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
+            # self._pkl_part.Lambda_Theta = \
+            #     copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
 
         return None
 
@@ -636,8 +638,8 @@ class SystemState():
             if self._pkl_part.k == k_limit_1+1:
                 print("bar")
                 self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
-                self._pkl_part.Lambda_Theta = \
-                    copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
+                # self._pkl_part.Lambda_Theta = \
+                #     copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
             for r, influence_path in self._unique_influence_paths.items():
                 m2_limit = \
                     influence_path.max_m2_in_second_iteration_procedure(n)
@@ -659,10 +661,10 @@ class SystemState():
 
         if k <= self._max_k_in_first_iteration_procedure(n):
             rho_nodes = self._pkl_part.Xi_rho_vdash
-            Lambda_Theta = copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
+            # Lambda_Theta = copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
         else:
             rho_nodes = self._pkl_part.Xi_rho
-            Lambda_Theta = copy.deepcopy(self._pkl_part.Lambda_Theta)
+            # Lambda_Theta = copy.deepcopy(self._pkl_part.Lambda_Theta)
 
         # mps_nodes = ([self._pkl_part.Gammas, self._pkl_part.Lambdas]
         #              if is_infinite
@@ -684,7 +686,7 @@ class SystemState():
             # kwargs = {"gates": gates,
             kwargs = {"mpo_nodes": mpo_nodes,
                       "mps_nodes": mps_nodes,
-                      "Lambda_Theta": Lambda_Theta,
+                      # "Lambda_Theta": Lambda_Theta,
                       "compress_params": spatial_compress_params}
             # kwargs = {"mpo_nodes": mpo_nodes,
             #           "mps_nodes": mps_nodes,
@@ -737,7 +739,7 @@ class SystemState():
         if k <= self._max_k_in_first_iteration_procedure(n):
             print("Hi")
             self._pkl_part.Xi_rho_vdash = rho_nodes
-            self._pkl_part.Lambda_Theta_vdash = Lambda_Theta
+            # self._pkl_part.Lambda_Theta_vdash = Lambda_Theta
             beg = 1 if (k == -1) or (self._pkl_part.alg == "z-noise") else 3
             for r, influence_path in self._unique_influence_paths.items():
                 influence_path.pkl_part.Xi_I_1_1_nodes = \
@@ -745,7 +747,7 @@ class SystemState():
         else:
             print("Ho")
             self._pkl_part.Xi_rho = rho_nodes
-            self._pkl_part.Lambda_Theta = Lambda_Theta
+            # self._pkl_part.Lambda_Theta = Lambda_Theta
 
         self._pkl_part.k += 1
 
