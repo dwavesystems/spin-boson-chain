@@ -221,9 +221,8 @@ class Path():
 
         kwargs = {"mpo_nodes": self.influence_mpo_factory.build(m2+1, n),
                   "mps_nodes": mps_nodes,
-                  "compress_params": self.pkl_part.compress_params,
-                  "is_infinite": False}
-        sbc._mpomps.apply_mpo_to_mps_and_compress(**kwargs)
+                  "compress_params": self.pkl_part.compress_params}
+        sbc._mpomps.apply_finite_mpo_to_finite_mps_and_compress(**kwargs)
 
         if m2 <= self.max_m2_in_first_iteration_procedure(n):
             if self.mu_m_tau(m=m2+2) >= 1:

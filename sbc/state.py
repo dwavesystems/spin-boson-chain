@@ -139,6 +139,9 @@ import pickle
 # To get the current working directory.
 import os
 
+# For deep copies of objects.
+import copy
+
 
 
 # For creating arrays to be used to construct tensor nodes and networks.
@@ -158,8 +161,11 @@ import sbc._phasefactor
 # For creating influence paths/functionals.
 import sbc._influence
 
-# For performing SVD truncation sweeps, QR factorizations, and single-node SVDs.
+# For performing SVD truncation sweeps, and single-node SVDs.
 import sbc._svd
+
+# For performing QR factorizations.
+import sbc._qr
 
 # For applying MPO's to MPS's.
 import sbc._mpomps
@@ -230,6 +236,7 @@ class _SystemStatePklPart():
 
         # For caching purposes.
         self.Xi_rho = None
+        self.Lambda_Theta = []
         self.trace = None
         self.transfer_matrix = None
         self.dominant_eigval = None
@@ -270,13 +277,42 @@ class _SystemStatePklPart():
                 
             rho_nodes.append(new_node)
 
+        # if self.is_infinite:
+        #     self.Gammas, self.Lambdas = sbc._svd.vidal_form(rho_nodes)
+        #     self.schmidt_spectra = self.Lambdas
+        #     for i in range(L):
+        #         print("Gammas[{}] =".format(i), self.Gammas[i].tensor)
+        #         print("Lambdas[{}] =".format(i), np.diag(self.Lambdas[i].tensor))
+        # else:
+        #     kwargs = {"nodes": rho_nodes,
+        #               "compress_params": None,
+        #               "is_infinite": self.is_infinite,
+        #               "starting_node_idx": None}
+        #     self.schmidt_spectra = sbc._svd.left_to_right_sweep(**kwargs)
+
+        # sbc._mpomps.canonicalize_and_compress_infinite_mps(rho_nodes, None)
         if self.is_infinite:
-            self.schmidt_spectrum = None
+            # self.Gammas, self.Lambdas = sbc._svd.vidal_form(**kwargs)
+            self.Lambda_Theta_vdash = sbc._svd.Lambda_Theta_form(rho_nodes, 0)
+            kwargs = {"Lambda_Theta": self.Lambda_Theta_vdash,
+                      "compress_params": None}
+            sbc._mpomps.canonicalize_and_compress_infinite_mps(**kwargs)
+            Lambda = self.Lambda_Theta_vdash[0]
+            Theta_nodes = self.Lambda_Theta_vdash[1]
+            L = len(rho_nodes)
+            rho_nodes[0] = tn.ncon([Lambda, Theta_nodes[0]],
+                                   [(-1, 1), (1, -2, -3)])
+            for r in range(1, L):
+                rho_nodes[r] = Theta_nodes[r]
+            print("start")
+            print("Lambda =", np.diag(Lambda.tensor))
         else:
             kwargs = {"nodes": rho_nodes,
                       "compress_params": None,
-                      "is_infinite": self.is_infinite}
-            self.schmidt_spectrum = sbc._svd.left_to_right_svd_sweep(**kwargs)
+                      "is_infinite": self.is_infinite,
+                      "starting_node_idx": None}
+            self.Lambda_Theta_vdash = []
+            self.schmidt_spectra = sbc._svd.left_to_right_sweep(**kwargs)
         self.nodes = rho_nodes
 
         return None
@@ -551,7 +587,7 @@ class SystemState():
         if num_k_steps_per_dump < 1:
             raise ValueError(_system_state_reset_evolve_procedure_err_msg_2)
 
-        self._pkl_part.schmidt_spectrum = None
+        self._pkl_part.schmidt_spectra = None
         self._pkl_part.forced_gc = forced_gc
         self._pkl_part.num_k_steps_per_dump = num_k_steps_per_dump
 
@@ -570,7 +606,10 @@ class SystemState():
 
         k_limit = self._max_k_in_first_iteration_procedure(self._pkl_part.n)
         if k > k_limit:
+            print("Foo")
             self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
+            self._pkl_part.Lambda_Theta = \
+                copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
 
         return None
 
@@ -595,7 +634,10 @@ class SystemState():
                     k_step_count = 0
             self._pkl_part.just_recovered = False
             if self._pkl_part.k == k_limit_1+1:
+                print("bar")
                 self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
+                self._pkl_part.Lambda_Theta = \
+                    copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
             for r, influence_path in self._unique_influence_paths.items():
                 m2_limit = \
                     influence_path.max_m2_in_second_iteration_procedure(n)
@@ -617,31 +659,230 @@ class SystemState():
 
         if k <= self._max_k_in_first_iteration_procedure(n):
             rho_nodes = self._pkl_part.Xi_rho_vdash
+            Lambda_Theta = copy.deepcopy(self._pkl_part.Lambda_Theta_vdash)
         else:
             rho_nodes = self._pkl_part.Xi_rho
+            Lambda_Theta = copy.deepcopy(self._pkl_part.Lambda_Theta)
 
-        kwargs = {"mpo_nodes": self._build_mpo_nodes(),
-                  "mps_nodes": rho_nodes,
-                  "compress_params": self.alg_params.spatial_compress_params,
-                  "is_infinite": is_infinite}
-        sbc._mpomps.apply_mpo_to_mps_and_compress(**kwargs)
+        # mps_nodes = ([self._pkl_part.Gammas, self._pkl_part.Lambdas]
+        #              if is_infinite
+        #              else rho_nodes)
+
+        # print("before")
+        # print(Lambda_Theta[0].shape)
+        # for Theta_node in Lambda_Theta[1]:
+        #     print(Theta_node.shape)
+
+        mps_nodes = rho_nodes
+        spatial_compress_params = self.alg_params.spatial_compress_params
+        if is_infinite:
+            print("(k, n)=({}, {})".format(self._pkl_part.k, self._pkl_part.n))
+            # gates = \
+            #     self._build_gates_encoding_effects_of_bath_fields_and_couplers()
+            mpo_nodes = \
+                self._build_mpo_encoding_effects_of_bath_fields_and_couplers()
+            # kwargs = {"gates": gates,
+            kwargs = {"mpo_nodes": mpo_nodes,
+                      "mps_nodes": mps_nodes,
+                      "Lambda_Theta": Lambda_Theta,
+                      "compress_params": spatial_compress_params}
+            # kwargs = {"mpo_nodes": mpo_nodes,
+            #           "mps_nodes": mps_nodes,
+            #           "Gammas": self._pkl_part.Gammas,
+            #           "Lambdas": self._pkl_part.Lambdas,
+            #           "compress_params": spatial_compress_params}
+            # kwargs = {"gates": gates,
+            #           "mps_nodes": mps_nodes,
+            #           "compress_params": spatial_compress_params}
+            # sbc._mpomps.apply_gates_to_mps_and_compress(**kwargs)
+            apply_infinite_mpo_to_infinite_mps_and_compress = \
+                sbc._mpomps.apply_infinite_mpo_to_infinite_mps_and_compress
+            apply_infinite_mpo_to_infinite_mps_and_compress(**kwargs)
+            print()
+        else:
+            mpo_nodes = \
+                self._build_mpo_encoding_effects_of_bath_fields_and_couplers()
+            kwargs = {"mpo_nodes": mpo_nodes,
+                      "mps_nodes": mps_nodes,
+                      "compress_params": spatial_compress_params}
+            sbc._mpomps.apply_finite_mpo_to_finite_mps_and_compress(**kwargs)
+
+        # print("after")
+        # print(Lambda_Theta[0].shape)
+        # for Theta_node in Lambda_Theta[1]:
+        #     print(Theta_node.shape)
+
+        # if is_infinite:
+        #     L = self.system_model.L
+        #     Gammas, Lambdas = mps_nodes
+        #     self._pkl_part.Gammas = Gammas
+        #     self._pkl_part.Lambdas = Lambdas
+        #     self._pkl_part.schmidt_spectra = self._pkl_part.Lambdas
+        #     print("k =", k)
+        #     for i in range(L):
+        #         # print("k={}; max(Gammas[{}]) =".format(k, i), np.amax(Gammas[i].tensor))
+        #         # print("k={}; min(Gammas[{}]) =".format(k, i), np.amin(Gammas[i].tensor))
+        #         # print("k={}; Lambdas[{}] =".format(k, i), np.diag(Lambdas[i].tensor))
+        #         nodes_to_contract = [Lambdas[i], Gammas[i]]
+        #         network_struct = [(-1, 1), (1, -2, -3)]
+        #         rho_nodes[i] = tn.ncon(nodes_to_contract, network_struct)
+        # else:
+        #     rho_nodes = mps_nodes
+        rho_nodes = mps_nodes
 
         if k > self._max_k_in_first_iteration_procedure(n):
             self._pkl_part.influence_nodes_idx += \
                 1 if (k == -1) or (self._pkl_part.alg == "z-noise") else 3
 
         if k <= self._max_k_in_first_iteration_procedure(n):
+            print("Hi")
             self._pkl_part.Xi_rho_vdash = rho_nodes
+            self._pkl_part.Lambda_Theta_vdash = Lambda_Theta
             beg = 1 if (k == -1) or (self._pkl_part.alg == "z-noise") else 3
             for r, influence_path in self._unique_influence_paths.items():
                 influence_path.pkl_part.Xi_I_1_1_nodes = \
                     influence_path.pkl_part.Xi_I_1_1_nodes[beg:]
         else:
+            print("Ho")
             self._pkl_part.Xi_rho = rho_nodes
+            self._pkl_part.Lambda_Theta = Lambda_Theta
 
         self._pkl_part.k += 1
 
         return None
+
+
+
+    def _build_gates_encoding_effects_of_bath_fields_and_couplers(self):
+        L = self.system_model.L
+        
+        nodes_encoding_effects_of_bath_and_x_and_z_fields = \
+            self._build_nodes_encoding_effects_of_bath_and_x_and_z_fields()
+
+        split_rank_4_networks = []
+
+        for r in range(0, L):
+            # 'node' is rank 3.
+            node = nodes_encoding_effects_of_bath_and_x_and_z_fields[r]
+            split_rank_4_network = \
+                self._convert_rank_3_node_into_rank_4_network_and_split(node)
+            split_rank_4_networks.append(split_rank_4_network)
+
+        split_zz_coupler_phase_factor_nodes = \
+            self._build_and_split_zz_coupler_phase_factor_nodes()
+
+        gates = []
+        for rmin in range(0, 2):
+            for r in range(rmin, L, 2):
+                node_1 = split_rank_4_networks[r][rmin]
+                node_2 = split_zz_coupler_phase_factor_nodes[(2*r+1)%(2*L)]
+                node_3 = split_zz_coupler_phase_factor_nodes[(2*r+2)%(2*L)]
+                node_4 = split_rank_4_networks[(r+1)%L][rmin+(r+1-rmin)//L]
+                
+                nodes_to_contract = [node_1, node_2]
+                network_struct = [(-2, 1, -1), (1, -3)]
+                left_gate_node = tn.ncon(nodes_to_contract, network_struct)
+                new_shape = [1] + list(left_gate_node.shape)
+                new_tensor = np.zeros(new_shape, dtype=np.complex)
+                new_tensor[0] = np.array(left_gate_node.tensor)
+                left_gate_node = tn.Node(new_tensor)
+
+                nodes_to_contract = [node_3, node_4]
+                network_struct = [(-1, 1), (-3, 1, -2)]
+                right_gate_node = tn.ncon(nodes_to_contract, network_struct)
+                new_shape = list(right_gate_node.shape) + [1]
+                new_tensor = np.zeros(new_shape, dtype=np.complex)
+                new_tensor[:, :, :, 0] = np.array(right_gate_node.tensor)
+                right_gate_node = tn.Node(new_tensor)
+
+                gate = (left_gate_node, right_gate_node)
+                gates.append(gate)
+
+        return gates
+
+
+
+    def _convert_rank_3_node_into_rank_4_network_and_split(self, rank_3_node):
+        d = rank_3_node.shape[1]
+        
+        tensor = np.zeros([d, d, d], dtype=np.complex128)
+        for j in range(4):
+            tensor[j, j, j] = 1
+        dirac_delta_like_3_pt_node = tn.Node(tensor)
+
+        nodes_to_contract = [rank_3_node, dirac_delta_like_3_pt_node]
+        network_struct = [(-1, 1, -4), (-2, 1, -3)]
+        rank_4_network = tn.ncon(nodes_to_contract, network_struct)
+        
+        kwargs = {"node": rank_4_network,
+                  "left_edges": (rank_4_network[0], rank_4_network[1]),
+                  "right_edges": (rank_4_network[2], rank_4_network[3])}
+        split_rank_4_network = sbc._qr.split_node(**kwargs)
+
+        return split_rank_4_network
+
+
+
+    def _build_mpo_encoding_effects_of_bath_fields_and_couplers(self):
+        L = self.system_model.L
+
+        mpo_nodes = []
+
+        nodes_encoding_effects_of_bath_and_x_and_z_fields = \
+            self._build_nodes_encoding_effects_of_bath_and_x_and_z_fields()
+        
+        restructured_zz_coupler_phase_factor_nodes = \
+            self._build_split_and_restructure_zz_coupler_phase_factor_nodes()
+
+        for r in range(0, L):
+            nodes_to_contract = \
+                [nodes_encoding_effects_of_bath_and_x_and_z_fields[r],
+                 restructured_zz_coupler_phase_factor_nodes[r]]
+            network_struct = [(-3, 1, -2), (-1, 1, -4)]
+            mpo_node = tn.ncon(nodes_to_contract, network_struct)
+            mpo_nodes.append(mpo_node)
+
+        return mpo_nodes
+
+
+
+    def _build_nodes_encoding_effects_of_bath_and_x_and_z_fields(self):
+        k = self._pkl_part.k
+        n = self._pkl_part.n
+        L = self.system_model.L
+        
+        result = []
+
+        for r in range(0, L):
+            influence_nodes = self._get_influence_nodes(r, k, n)
+            z_field_phase_factor_node = \
+                self._z_field_phase_factor_node_rank_2_factory.build(r, k+1, n)
+
+            if (k != -1) and (self._pkl_part.alg == "yz-noise"):
+                j_node_1 = tn.Node(np.ones([4]))
+                j_node_2 = tn.Node(np.ones([4]))
+                nodes_to_contract = \
+                    [influence_nodes[0],
+                     j_node_1,
+                     influence_nodes[1],
+                     j_node_2,
+                     influence_nodes[2],
+                     z_field_phase_factor_node]
+                network_struct = [(-1, 1, 4),
+                                  (1,),
+                                  (4, 2, 5),
+                                  (2,),
+                                  (5, 3, -3),
+                                  (3, -2)]
+            else:
+                nodes_to_contract = \
+                    [influence_nodes[0], z_field_phase_factor_node]
+                network_struct = [(-1, 1, -3), (1, -2)]
+
+            node = tn.ncon(nodes_to_contract, network_struct)
+            result.append(node)
+
+        return result
 
 
 
@@ -689,10 +930,10 @@ class SystemState():
             mpo_nodes.append(mpo_node)
 
         return mpo_nodes
-            
 
 
-    def _build_split_and_restructure_zz_coupler_phase_factor_nodes(self):
+
+    def _build_and_split_zz_coupler_phase_factor_nodes(self):
         k = self._pkl_part.k
         n = self._pkl_part.n
         L = self.system_model.L
@@ -703,17 +944,27 @@ class SystemState():
         split_zz_coupler_phase_factor_nodes = [None] * (2*L)
         for r in range(num_couplers):
             node = zz_coupler_phase_factor_node_rank_2_factory.build(r, k+1, n)
-            left_node, right_node = \
-                sbc._svd.split_node_qr(node=node,
-                                       left_edges=(node[0],),
-                                       right_edges=(node[1],))
+            left_node, right_node = sbc._qr.split_node(node=node,
+                                                       left_edges=(node[0],),
+                                                       right_edges=(node[1],))
             split_zz_coupler_phase_factor_nodes[(2*r+1)%(2*L)] = left_node
             split_zz_coupler_phase_factor_nodes[(2*r+2)%(2*L)] = right_node
+
+        return split_zz_coupler_phase_factor_nodes
+
+
+
+    def _build_split_and_restructure_zz_coupler_phase_factor_nodes(self):
+        L = self.system_model.L
+
+        split_zz_coupler_phase_factor_nodes = \
+            self._build_and_split_zz_coupler_phase_factor_nodes()
 
         restructured_zz_coupler_phase_factor_nodes = []
         for r in range(L):
             node_1 = split_zz_coupler_phase_factor_nodes[2*r]
             node_3 = split_zz_coupler_phase_factor_nodes[2*r+1]
+            
             if (node_1 is None) and (node_3 is None):  # L=1; finite chain.
                 tensor = np.zeros([1, 4, 1], dtype=np.complex128)
                 for idx in range(4):
@@ -773,6 +1024,7 @@ class SystemState():
 
         dominant_eigval_idx = np.argmax(np.abs(w))
         self._pkl_part.dominant_eigval = w[dominant_eigval_idx]
+        print("transfer matrix dominant eigval =", self._pkl_part.dominant_eigval)
         
         left_eigvec = vl[:, dominant_eigval_idx]
         right_eigvec = vr[:, dominant_eigval_idx]
@@ -1121,18 +1373,19 @@ def schmidt_spectrum_sum(system_state, bond_indices=None):
     result = []
 
     try:
-        if system_state._pkl_part.schmidt_spectrum is None:
+        if system_state._pkl_part.schmidt_spectra is None:
             kwargs = {"nodes": system_state.nodes,
                       "compress_params": None,
-                      "is_infinite": system_state._pkl_part.is_infinite}
-            sbc._svd.right_to_left_svd_sweep(**kwargs)
-            schmidt_spectrum = sbc._svd.left_to_right_svd_sweep(**kwargs)
-            system_state._pkl_part.schmidt_spectrum = schmidt_spectrum  # Cache.
+                      "is_infinite": system_state._pkl_part.is_infinite,
+                      "starting_node_idx": None}
+            sbc._svd.right_to_left_sweep(**kwargs)
+            schmidt_spectra = sbc._svd.left_to_right_sweep(**kwargs)
+            system_state._pkl_part.schmidt_spectra = schmidt_spectra  # Cache.
         else:
-            schmidt_spectrum = system_state._pkl_part.schmidt_spectrum
+            schmidt_spectra = system_state._pkl_part.schmidt_spectra
         
         for bond_idx in bond_indices:
-            S_node = schmidt_spectrum[bond_idx]
+            S_node = schmidt_spectra[bond_idx]
             edge = S_node[0] ^ S_node[1]
             S_node_after_taking_trace = tn.contract(edge)
             S_sum = float(np.real(S_node_after_taking_trace.tensor))
