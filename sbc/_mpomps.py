@@ -137,30 +137,30 @@ def apply_gates_to_mps_and_compress(gates,
 #                                                     compress_params):
 def apply_infinite_mpo_to_infinite_mps_and_compress(mpo_nodes,
                                                     mps_nodes,
-                                                    # Lambda_Theta,
+                                                    Lambda_Theta,
                                                     compress_params):
-    # print("before")
-    # for r in range(len(mps_nodes)):
-        # print("mpo_nodes[{}].shape =".format(r), mpo_nodes[r].shape,
-        #       "mps_nodes[{}].shape =".format(r), mps_nodes[r].shape)
+    print("before")
+    for r in range(len(mps_nodes)):
+        print("mpo_nodes[{}].shape =".format(r), mpo_nodes[r].shape,
+              "mps_nodes[{}].shape =".format(r), mps_nodes[r].shape)
     apply_directly_finite_mpo_to_finite_mps(mpo_nodes, mps_nodes)
     # print("compress_params:", compress_params.__dict__)
-    kwargs = {"nodes": mps_nodes,
-              "compress_params": None,
-              "is_infinite": True,
-              "starting_node_idx": None}
-    sbc._svd.left_to_right_sweep(**kwargs)
-    kwargs["compress_params"] = compress_params
-    sbc._svd.right_to_left_sweep(**kwargs)
+    # kwargs = {"nodes": mps_nodes,
+    #           "compress_params": None,
+    #           "is_infinite": True,
+    #           "starting_node_idx": None}
+    # sbc._svd.left_to_right_sweep(**kwargs)
+    # kwargs["compress_params"] = compress_params
+    # sbc._svd.right_to_left_sweep(**kwargs)
     # print("after")
     # for r in range(len(mps_nodes)):
         # print("mpo_nodes[{}].shape =".format(r), mpo_nodes[r].shape,
         #       "mps_nodes[{}].shape =".format(r), mps_nodes[r].shape)
 
-    return None
+    # return None
 
     L = len(mps_nodes)
-    for starting_node_idx in range(1):
+    for starting_node_idx in range(L):
         Lambda_Theta = sbc._svd.Lambda_Theta_form(mps_nodes, starting_node_idx)
         canonicalize_and_compress_infinite_mps(Lambda_Theta, compress_params)
 
@@ -180,12 +180,17 @@ def apply_infinite_mpo_to_infinite_mps_and_compress(mpo_nodes,
         for dr in range(1, L):
             mps_nodes[(r0+dr)%L] = Theta_nodes[dr]
 
-    kwargs = {"nodes": mps_nodes,
-              "compress_params": None,
-              "is_infinite": True,
-              "starting_node_idx": None}
-    sbc._svd.left_to_right_sweep(**kwargs)
-    sbc._svd.right_to_left_sweep(**kwargs)
+    # kwargs = {"nodes": mps_nodes,
+    #           "compress_params": None,
+    #           "is_infinite": True,
+    #           "starting_node_idx": None}
+    # sbc._svd.left_to_right_sweep(**kwargs)
+    # sbc._svd.right_to_left_sweep(**kwargs)
+
+    print("after")
+    for r in range(len(mps_nodes)):
+        print("mpo_nodes[{}].shape =".format(r), mpo_nodes[r].shape,
+              "mps_nodes[{}].shape =".format(r), mps_nodes[r].shape)
 
     return None
     
@@ -208,7 +213,7 @@ def apply_infinite_mpo_to_infinite_mps_and_compress(mpo_nodes,
         mps_nodes[r] = Theta_nodes[r]
 
     # print("Lambda shape =", Lambda.shape)
-    print("Lambda =", np.diag(Lambda.tensor))
+    # print("Lambda =", np.diag(Lambda.tensor))
     # for idx, Theta_node in enumerate(Theta_nodes):
     #     print("Theta node shape #{} =".format(idx), Theta_node.shape)
 
@@ -931,8 +936,8 @@ def canonicalize_and_compress_infinite_mps(Lambda_Theta, compress_params):
 
     new_Theta_nodes = old_Theta_nodes
 
-    for idx, Theta_node in enumerate(new_Theta_nodes):
-        print("old Theta node shape #{} =".format(idx), Theta_node.shape)
+    # for idx, Theta_node in enumerate(new_Theta_nodes):
+    #     print("old Theta node shape #{} =".format(idx), Theta_node.shape)
     
     nodes_to_contract = [Z_L, new_Theta_nodes[0]]
     network_struct = [(-1, 1), (1, -2, -3)]
@@ -948,7 +953,7 @@ def canonicalize_and_compress_infinite_mps(Lambda_Theta, compress_params):
               "is_infinite": False,
               "starting_node_idx": None}
     sbc._svd.left_to_right_sweep(**kwargs)
-    kwargs["compress_params"] = compress_params
+    # kwargs["compress_params"] = compress_params
     # for idx, new_Theta_node in enumerate(new_Theta_nodes):
     #     print("new Theta node max #{}:".format(idx), np.amax(np.abs(new_Theta_node.tensor)))
     sbc._svd.right_to_left_sweep(**kwargs)
@@ -1260,7 +1265,7 @@ def calc_mu_L_and_V_L(Lambda_Theta):
 
     mu_L, V_L = sbc._arnoldi.dominant_eigpair_of_transfer_matrix(**kwargs)
 
-    print("mu_L =", mu_L)
+    # print("mu_L =", mu_L)
 
     return mu_L, V_L
 
@@ -1407,7 +1412,7 @@ def calc_mu_R_and_V_R(Lambda_Theta):
     V_R = V_R_2
     mu_R = mu_R_2
     
-    print("mu_R #2 =", mu_R_2)
+    # print("mu_R #2 =", mu_R_2)
     # print("mu_R =", mu)
     # print("V_R.shape =", V_R_1.shape)
     # V_R = v

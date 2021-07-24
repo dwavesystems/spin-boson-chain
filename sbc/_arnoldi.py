@@ -260,7 +260,7 @@ def dominant_eigpair_of_transfer_matrix(Lambda_Theta,
 
     while not factorization_with_restart_alg.has_converged():
         factorization_with_restart_alg.step()
-        print("eigval =", factorization_with_restart_alg.dominant_ritz_eigval)
+        # print("eigval =", factorization_with_restart_alg.dominant_ritz_eigval)
 
     dominant_eigval = factorization_with_restart_alg.dominant_ritz_eigval
     dominant_eigvec = factorization_with_restart_alg.dominant_ritz_eigvec
@@ -588,7 +588,7 @@ class FactorizationWithRestartAlg():
             wu = self.factorization_alg.gen_new_krylov_vector(C=u)
             # print("norm of theta =", tn.norm(theta))
             residual_norm = tn.norm(wu - theta * u) / tn.norm(theta)
-            print("residual_norm =", residual_norm)
+            # print("residual_norm =", residual_norm)
             result = True if residual_norm < self.epsilon_D else False
 
             if self.factorization_alg.unit_cell_type == "left":
