@@ -38,11 +38,6 @@ __all__ = ["Scalar"]
 
 
 
-def _time_independent_fn(t, fn_result):
-    return fn_result
-
-
-
 class Scalar():
     r"""A time-dependent scalar model parameter.
 
@@ -149,3 +144,6 @@ class Scalar():
         return result
 
         
+
+def _time_independent_fn(t, fn_result):
+    return fn_result
