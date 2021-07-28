@@ -158,8 +158,11 @@ import sbc._phasefactor
 # For creating influence paths/functionals.
 import sbc._influence
 
-# For performing SVD truncation sweeps, QR factorizations, and single-node SVDs.
+# For performing SVD truncation sweeps, and single-node SVDs.
 import sbc._svd
+
+# For performing QR factorizations.
+import sbc._qr
 
 # For applying MPO's to MPS's.
 import sbc._mpomps
@@ -276,7 +279,7 @@ class _SystemStatePklPart():
             kwargs = {"nodes": rho_nodes,
                       "compress_params": None,
                       "is_infinite": self.is_infinite}
-            self.schmidt_spectrum = sbc._svd.left_to_right_svd_sweep(**kwargs)
+            self.schmidt_spectrum = sbc._svd.left_to_right_sweep(**kwargs)
         self.nodes = rho_nodes
 
         return None
@@ -704,9 +707,9 @@ class SystemState():
         for r in range(num_couplers):
             node = zz_coupler_phase_factor_node_rank_2_factory.build(r, k+1, n)
             left_node, right_node = \
-                sbc._svd.split_node_qr(node=node,
-                                       left_edges=(node[0],),
-                                       right_edges=(node[1],))
+                sbc._qr.split_node(node=node,
+                                   left_edges=(node[0],),
+                                   right_edges=(node[1],))
             split_zz_coupler_phase_factor_nodes[(2*r+1)%(2*L)] = left_node
             split_zz_coupler_phase_factor_nodes[(2*r+2)%(2*L)] = right_node
 
@@ -1125,8 +1128,8 @@ def schmidt_spectrum_sum(system_state, bond_indices=None):
             kwargs = {"nodes": system_state.nodes,
                       "compress_params": None,
                       "is_infinite": system_state._pkl_part.is_infinite}
-            sbc._svd.right_to_left_svd_sweep(**kwargs)
-            schmidt_spectrum = sbc._svd.left_to_right_svd_sweep(**kwargs)
+            sbc._svd.right_to_left_sweep(**kwargs)
+            schmidt_spectrum = sbc._svd.left_to_right_sweep(**kwargs)
             system_state._pkl_part.schmidt_spectrum = schmidt_spectrum  # Cache.
         else:
             schmidt_spectrum = system_state._pkl_part.schmidt_spectrum

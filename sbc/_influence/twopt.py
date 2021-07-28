@@ -240,7 +240,7 @@ class Bath():
             selected_eta = self.pkl_part.eta_cache_4[2*K_tau-1-l2+l1]
         elif (max(2, 2*n+1-2*K_tau) <= l1 <= 2*n) and (l2 == 2*n):
             selected_eta = self.pkl_part.eta_cache_5[2*K_tau-2*n-1+l1]
-        elif (max(2, 2*n+1-2*K_tau+1) <= l1 <= 2*n+1) and (l2 == 2*n+1):
+        elif (max(2, 2*n+2-2*K_tau) <= l1 <= 2*n+1) and (l2 == 2*n+1):
             selected_eta = self.pkl_part.eta_cache_6[2*K_tau-2*n-2+l1]
 
         return selected_eta

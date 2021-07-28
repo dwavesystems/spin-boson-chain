@@ -52,6 +52,15 @@ __status__       = "Development"
 
 
 
+###################################
+## Useful background information ##
+###################################
+
+# See e.g. ``https://docs.python.org/3/reference/import.html#regular-packages``
+# for a brief discussion of ``__init__.py`` files.
+
+
+
 ##################################
 ## Define classes and functions ##
 ##################################

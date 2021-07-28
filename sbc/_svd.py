@@ -41,7 +41,7 @@ __status__ = "Non-Production"
 ## Define classes and functions ##
 ##################################
 
-def left_to_right_svd_sweep(nodes, compress_params, is_infinite):
+def left_to_right_sweep(nodes, compress_params, is_infinite):
     truncated_schmidt_spectrum = []
         
     num_nodes = len(nodes)
@@ -58,7 +58,7 @@ def left_to_right_svd_sweep(nodes, compress_params, is_infinite):
 
 
 
-def right_to_left_svd_sweep(nodes, compress_params, is_infinite):
+def right_to_left_sweep(nodes, compress_params, is_infinite):
     truncated_schmidt_spectrum = []
 
     num_nodes = len(nodes)
@@ -87,10 +87,10 @@ def shift_orthogonal_center_to_the_right(nodes,
     left_edges = tuple(node_i[idx] for idx in range(num_edges_per_node-1))
     right_edges = (node_i[num_edges_per_node-1],)
         
-    U, S, V_dagger = split_node_full_svd(node_i,
-                                         left_edges,
-                                         right_edges,
-                                         compress_params)
+    U, S, V_dagger = split_node_full(node_i,
+                                     left_edges,
+                                     right_edges,
+                                     compress_params)
 
     nodes[i%num_nodes] = U
 
@@ -118,10 +118,10 @@ def shift_orthogonal_center_to_the_left(nodes,
     left_edges = (node_i[0],)
     right_edges = tuple(node_i[idx] for idx in range(1, num_edges_per_node))
 
-    U, S, V_dagger = split_node_full_svd(node_i,
-                                         left_edges,
-                                         right_edges,
-                                         compress_params)
+    U, S, V_dagger = split_node_full(node_i,
+                                     left_edges,
+                                     right_edges,
+                                     compress_params)
         
     nodes[i%num_nodes] = V_dagger
 
@@ -137,7 +137,7 @@ def shift_orthogonal_center_to_the_left(nodes,
 
 
 
-def split_node_full_svd(node, left_edges, right_edges, compress_params):
+def split_node_full(node, left_edges, right_edges, compress_params):
     # Switch to numpy backend (if numpy is not being used) so that SVD can
     # be performed on CPUs as it is currently faster than on GPUs.
     original_backend_name = node.backend.name
@@ -164,7 +164,7 @@ def split_node_full_svd(node, left_edges, right_edges, compress_params):
         U[-1] | S[0]  # Break edge between U and S nodes.
         S[-1] | V_dagger[0]  # Break edge between S and V_dagger.
     except np.linalg.LinAlgError:
-        U, S, V_dagger = split_node_full_svd_backup(**kwargs)
+        U, S, V_dagger = split_node_full_backup(**kwargs)
 
     if svd_rel_tol is not None:
         singular_vals = np.diag(S.tensor)
@@ -186,33 +186,11 @@ def split_node_full_svd(node, left_edges, right_edges, compress_params):
 
 
 
-def split_node_qr(node, left_edges, right_edges):
-    # Switch to numpy backend (if numpy is not being used) so that SVD can be
-    # performed on CPUs as it is currently faster than on GPUs.
-    original_backend_name = node.backend.name
-    if original_backend_name != "numpy":
-        sbc._backend.tf_to_np(node)
-
-    Q, R = tn.split_node_qr(node=node,
-                            left_edges=left_edges,
-                            right_edges=right_edges)
-
-    Q[-1] | R[0]  # Break edge between the two nodes.
-
-    # Switch back to original backend (if different from numpy).
-    if original_backend_name != "numpy":
-        sbc._backend.np_to_tf(Q)
-        sbc._backend.np_to_tf(R)
-
-    return Q, R
-
-
-
-def split_node_full_svd_backup(node,
-                               left_edges,
-                               right_edges,
-                               max_singular_values,
-                               max_truncation_err):
+def split_node_full_backup(node,
+                           left_edges,
+                           right_edges,
+                           max_singular_values,
+                           max_truncation_err):
     num_left_edges = len(left_edges)
     num_right_edges = len(right_edges)
     node.reorder_edges(left_edges+right_edges)

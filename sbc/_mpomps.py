@@ -21,9 +21,12 @@ import tensornetwork as tn
 
 
 
-# For performing SVD truncation sweeps, shifting orthogonal centers, QR
-# factorizations, and single-node SVD.
+# For performing SVD truncation sweeps, shifting orthogonal centers,
+# and single-node SVD.
 import sbc._svd
+
+# For performing QR factorizations.
+import sbc._qr
 
 
 
@@ -65,12 +68,12 @@ def apply_infinite_mpo_to_infinite_mps_and_compress(mpo_nodes,
                                                     mps_nodes,
                                                     compress_params):
     apply_directly_mpo_to_mps(mpo_nodes, mps_nodes)
-    sbc._svd.left_to_right_svd_sweep(mps_nodes,
-                                     compress_params=None,
-                                     is_infinite=True)
-    sbc._svd.right_to_left_svd_sweep(mps_nodes,
-                                     compress_params=compress_params,
-                                     is_infinite=True)
+    sbc._svd.left_to_right_sweep(mps_nodes,
+                                 compress_params=None,
+                                 is_infinite=True)
+    sbc._svd.right_to_left_sweep(mps_nodes,
+                                 compress_params=compress_params,
+                                 is_infinite=True)
 
     return None
 
@@ -80,9 +83,9 @@ def apply_finite_mpo_to_finite_mps_and_compress(mpo_nodes,
                                                 mps_nodes,
                                                 compress_params):
     # Put MPO in left-canonical form. MPS is assumed to be already in said form.
-    sbc._svd.left_to_right_svd_sweep(mpo_nodes,
-                                     compress_params=None,
-                                     is_infinite=False)
+    sbc._svd.left_to_right_sweep(mpo_nodes,
+                                 compress_params=None,
+                                 is_infinite=False)
 
     if compress_params.max_num_var_sweeps > 0:
         norm_of_mps_to_compress = \
@@ -93,9 +96,9 @@ def apply_finite_mpo_to_finite_mps_and_compress(mpo_nodes,
 
     if compress_params.method == "direct":
         apply_directly_mpo_to_mps(mpo_nodes, mps_nodes)
-        sbc._svd.right_to_left_svd_sweep(mps_nodes,
-                                         compress_params=None,
-                                         is_infinite=False)
+        sbc._svd.right_to_left_sweep(mps_nodes,
+                                     compress_params=None,
+                                     is_infinite=False)
     else:
         zip_up(mpo_nodes, mps_nodes, compress_params)
 
@@ -304,10 +307,10 @@ def update_mps_node_in_zip_up(node_idx,
     if 0 < i <= imax:
         left_edges = (temp_node_2[0], temp_node_2[1])
         right_edges = (temp_node_2[2], temp_node_2[3])
-        U, S, V_dagger = sbc._svd.split_node_full_svd(temp_node_2,
-                                                      left_edges,
-                                                      right_edges,
-                                                      compress_params)
+        U, S, V_dagger = sbc._svd.split_node_full(temp_node_2,
+                                                  left_edges,
+                                                  right_edges,
+                                                  compress_params)
         mps_nodes[i] = V_dagger
     elif i == 0:
         tn.flatten_edges([temp_node_2[0], temp_node_2[1]])
@@ -477,9 +480,9 @@ def update_node_and_shift_left_in_variational_compression(mpo_nodes,
     L_cache.pop()
 
     QR = tn.conj(LMWR)
-    left_node, right_node = sbc._svd.split_node_qr(node=QR,
-                                                   left_edges=(QR[1], QR[2]),
-                                                   right_edges=(QR[0],))
+    left_node, right_node = sbc._qr.split_node(node=QR,
+                                               left_edges=(QR[1], QR[2]),
+                                               right_edges=(QR[0],))
     new_edge_order = [left_node[2], left_node[0], left_node[1]]
     B = tn.conj(left_node.reorder_edges(new_edge_order))
     mps_nodes[orthogonal_center_idx] = B
@@ -519,9 +522,9 @@ def update_node_and_shift_right_in_variational_compression(mpo_nodes,
     R_cache.pop(0)
 
     QR = LMWR
-    left_node, right_node = sbc._svd.split_node_qr(node=QR,
-                                                   left_edges=(QR[0], QR[1]),
-                                                   right_edges=(QR[2],))
+    left_node, right_node = sbc._qr.split_node(node=QR,
+                                               left_edges=(QR[0], QR[1]),
+                                               right_edges=(QR[2],))
     A = left_node
     mps_nodes[orthogonal_center_idx] = A
     conj_A = tn.conj(A)

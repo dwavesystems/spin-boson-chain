@@ -968,11 +968,11 @@ def noise_strength(spectral_density):
     characterize the strength of this noise by calculating:
 
     .. math ::
-        W = \int_{-\infty}^{\infty}\frac{d\omega}{2\pi} A_{\nu;r;T}(\omega).
+        W_{\nu; r; T} = \int_{-\infty}^{\infty}\frac{d\omega}{2\pi} A_{\nu;r;T}(\omega).
         :label: bath_W_expr
 
     The function :func:`sbc.bath.noise_strength` calculates the quantity
-    :math:`W` given a spectral density :math:`A_{\nu;r;T}(\omega)`.
+    :math:`W_{\nu; r; T}` given a spectral density :math:`A_{\nu;r;T}(\omega)`.
 
     Parameters
     ----------
@@ -982,7 +982,7 @@ def noise_strength(spectral_density):
     Returns
     -------
     W : `float`
-        The strength of the noise :math:`W`.
+        The strength of the noise :math:`W_{\nu; r; T}`.
     """
     integrand = lambda omega: spectral_density.eval(omega) / 2.0 / np.pi
     pts = _get_integration_pts(spectral_density)
