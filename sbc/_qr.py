@@ -35,9 +35,9 @@ __status__ = "Non-Production"
 ## Define classes and functions ##
 ##################################
 
-def left_to_right_sweep(nodes, is_infinite, starting_node_idx, normalize):
+def left_to_right_sweep(nodes, is_infinite, normalize):
     num_nodes = len(nodes)
-    imin = 0 if starting_node_idx is None else starting_node_idx
+    imin = 0
     imax = imin + (num_nodes - 2 + int(is_infinite))
 
     kwargs = {"nodes": nodes, "current_orthogonal_center_idx": imin}
@@ -53,11 +53,9 @@ def left_to_right_sweep(nodes, is_infinite, starting_node_idx, normalize):
 
 
 
-def right_to_left_sweep(nodes, is_infinite, starting_node_idx, normalize):
+def right_to_left_sweep(nodes, is_infinite, normalize):
     num_nodes = len(nodes)
-    imax = (num_nodes - 1 + int(is_infinite)
-            if starting_node_idx is None
-            else starting_node_idx)
+    imax = num_nodes - 1 + int(is_infinite)
     imin = imax - (num_nodes - 1 + int(is_infinite)) + 1
 
     kwargs = {"nodes": nodes, "current_orthogonal_center_idx": imax}

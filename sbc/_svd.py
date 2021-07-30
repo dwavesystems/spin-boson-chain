@@ -8,11 +8,6 @@ r"""For performing various TN operations involving SVD.
 ## Load libraries/packages/modules ##
 #####################################
 
-# For deep copies of objects.
-import copy
-
-
-
 # For general array handling.
 import numpy as np
 
@@ -46,15 +41,11 @@ __status__ = "Non-Production"
 ## Define classes and functions ##
 ##################################
 
-def left_to_right_sweep(nodes,
-                        compress_params,
-                        is_infinite,
-                        starting_node_idx,
-                        normalize):
+def left_to_right_sweep(nodes, compress_params, is_infinite, normalize):
     truncated_schmidt_spectra = []
         
     num_nodes = len(nodes)
-    imin = 0 if starting_node_idx is None else starting_node_idx
+    imin = 0
     imax = imin + (num_nodes - 2 + int(is_infinite))
 
     kwargs = {"nodes": nodes,
@@ -67,28 +58,19 @@ def left_to_right_sweep(nodes,
         kwargs["current_orthogonal_center_idx"] = i
         U, S, V_dagger = shift_orthogonal_center_to_the_right(**kwargs)
         truncated_schmidt_spectra.append(S)
-        # print("inside 'left_to_right_sweep'; i={}; mps node shape = ".format(i), nodes[i%num_nodes].shape)
 
     if (not is_infinite) and normalize:
         nodes[-1] /= tn.norm(nodes[-1])
-        # kwargs["current_orthogonal_center_idx"] = imax+1
-        # U, S, V_dagger = shift_orthogonal_center_to_the_right(**kwargs)
 
     return truncated_schmidt_spectra
 
 
 
-def right_to_left_sweep(nodes,
-                        compress_params,
-                        is_infinite,
-                        starting_node_idx,
-                        normalize):
+def right_to_left_sweep(nodes, compress_params, is_infinite, normalize):
     truncated_schmidt_spectra = []
 
     num_nodes = len(nodes)
-    imax = (num_nodes - 1 + int(is_infinite)
-            if starting_node_idx is None
-            else starting_node_idx)
+    imax = num_nodes - 1 + int(is_infinite)
     imin = imax - (num_nodes - 1 + int(is_infinite)) + 1
 
     kwargs = {"nodes": nodes,
@@ -101,12 +83,9 @@ def right_to_left_sweep(nodes,
         kwargs["current_orthogonal_center_idx"] = i
         U, S, V_dagger = shift_orthogonal_center_to_the_left(**kwargs)
         truncated_schmidt_spectra.insert(0, S)
-        # print("inside 'right_to_left_sweep'; i={}; mps node shape = ".format(i), nodes[i%num_nodes].shape)
 
     if (not is_infinite) and normalize:
         nodes[0] /= tn.norm(nodes[0])
-        # kwargs["current_orthogonal_center_idx"] = imin-1
-        # U, S, V_dagger = shift_orthogonal_center_to_the_left(**kwargs)
 
     return truncated_schmidt_spectra
 
@@ -135,9 +114,6 @@ def shift_orthogonal_center_to_the_right(nodes,
         S /= tn.norm(S)
 
     nodes[i%num_nodes] = U
-
-    if (not is_infinite) and (i == num_nodes-1):
-        return U, S, V_dagger
 
     node_iP1 = nodes[(i+1)%num_nodes]
     nodes_to_contract = (S, V_dagger, node_iP1)
@@ -174,9 +150,6 @@ def shift_orthogonal_center_to_the_left(nodes,
         S /= tn.norm(S)
         
     nodes[i%num_nodes] = V_dagger
-
-    if (not is_infinite) and (i == 0):
-        return U, S, V_dagger
 
     node_iM1 = nodes[(i-1)%num_nodes]
     nodes_to_contract = (node_iM1, U, S)
@@ -233,8 +206,6 @@ def split_node_full(node, left_edges, right_edges, compress_params):
         U = tn.Node(U.tensor[..., :cutoff_idx])
         S = tn.Node(S.tensor[:cutoff_idx, :cutoff_idx])
         V_dagger = tn.Node(V_dagger.tensor[:cutoff_idx, ...])
-
-    # S = rescale_S(S, discarded_singular_values)
 
     # Switch back to original backend (if different from numpy).
     if original_backend_name != "numpy":
@@ -296,93 +267,15 @@ def split_node_full_backup(node,
 
 
 
-def rescale_S(S, discarded_singular_values):
-    # S is the node containing the singular values that were not discarded.
-    kept_singular_values = np.diag(S.tensor)
-    to_concatenate = (kept_singular_values, discarded_singular_values)
-    all_singular_values = np.concatenate(to_concatenate)
-
-    largest_singular_value = np.amax(kept_singular_values)
-    all_singular_values_rescaled = all_singular_values / largest_singular_value
-        
-    kept_singular_values_rescaled = (kept_singular_values
-                                     / np.amax(kept_singular_values))
-    kept_singular_values_rescaled /= \
-        np.linalg.norm(kept_singular_values_rescaled)
-    kept_singular_values_rescaled *= \
-        np.linalg.norm(all_singular_values_rescaled)
-    kept_singular_values_rescaled *= largest_singular_value
-
-    S = tn.Node(np.diag(kept_singular_values_rescaled))
-
-    return S
-
-
-
-def vidal_form(mps_nodes, compress_params, is_infinite):
-    L = len(mps_nodes)
-    Gammas = [None] * L
-    # Lambdas = [None] * (L - 1 + int(is_infinite))
-
-    # imax = L - 2 + int(is_infinite)
-
-    kwargs = {"nodes": mps_nodes,
-              "compress_params": None,
-              "is_infinite": is_infinite,
-              "starting_node_idx": None}
-    left_to_right_sweep(**kwargs)
-
-    kwargs["compress_params"] = compress_params
-    Lambdas = right_to_left_sweep(**kwargs)
-    if is_infinite:
-        Lambdas.insert(0, Lambdas.pop())
-
-    for r in range(L):
-        if (not is_infinite) and (r == L-1):
-            Gammas[r] = mps_nodes[r]
-        else:
-            idx = (r + int(is_infinite)) % L
-            Lambda_tensor = np.array(Lambdas[idx].tensor)
-            Lambda_inv_tensor = np.diag(1 / np.diag(Lambda_tensor))
-            Lambda_inv = tn.Node(Lambda_inv_tensor)
-
-            nodes_to_contract = (mps_nodes[r], Lambda_inv)
-            network_struct = [(-1, -2, 1), (1, -3)]
-            Gammas[r] = tn.ncon(nodes_to_contract, network_struct)
-
-    # kwargs = {"nodes": mps_nodes,
-    #           "current_orthogonal_center_idx": 0,
-    #           "compress_params": None}
-
-    # for i in range(imax+1):
-    #     kwargs["current_orthogonal_center_idx"] = i
-    #     U, S, V_dagger = shift_orthogonal_center_to_the_right(**kwargs)
-    #     Lambdas[(i+1)%L] = S
-
-    # for i in range(imax+1):
-    #     Lambda_i_tensor = Lambdas[i].tensor
-    #     Lambda_i_inv_tensor = np.diag(1 / np.diag(np.array(Lambda_i_tensor)))
-    #     Lambda_i_inv = tn.Node(Lambda_i_inv_tensor)
-
-    #     nodes_to_contract = (Lambda_i_inv, mps_nodes[i])
-    #     network_struct = [(-1, 1), (1, -2, -3)]
-    #     Gammas[i] = tn.ncon(nodes_to_contract, network_struct)
-
-    return Gammas, Lambdas
-
-
-
-def Lambda_Theta_form(mps_nodes, starting_node_idx):
+def Lambda_Theta_form(mps_nodes):
     # Used for infinite chains.
     left_to_right_sweep(nodes=mps_nodes,
                         compress_params=None,
                         is_infinite=False,  # Avoid doing the extra shift.
-                        starting_node_idx=starting_node_idx,
                         normalize=False)
 
-    r0 = starting_node_idx
     L = len(mps_nodes)
-    node = mps_nodes[(r0-1)%L]
+    node = mps_nodes[-1]
     U, S, V_dagger = split_node_full(node=node,
                                      left_edges=(node[0], node[1]),
                                      right_edges=(node[2],),
@@ -399,15 +292,15 @@ def Lambda_Theta_form(mps_nodes, starting_node_idx):
         
         return Lambda_Theta
 
-    for r in range(r0, r0+L):
-        Theta_nodes.append(mps_nodes[r%L])
+    for r in range(L):
+        Theta_nodes.append(mps_nodes[r])
 
     Theta_nodes[-1] = U
     Lambda = S
-    Theta_nodes[0] = tn.ncon([V_dagger, mps_nodes[r0]], [(-1, 1), (1, -2, -3)])
+    Theta_nodes[0] = tn.ncon([V_dagger, mps_nodes[0]], [(-1, 1), (1, -2, -3)])
 
-    mps_nodes[(r0-1)%L] = U
-    mps_nodes[r0] = tn.ncon([S, Theta_nodes[0]], [(-1, 1), (1, -2, -3)])
+    mps_nodes[-1] = U
+    mps_nodes[0] = tn.ncon([S, Theta_nodes[0]], [(-1, 1), (1, -2, -3)])
 
     Lambda_Theta = [Lambda, Theta_nodes]
 

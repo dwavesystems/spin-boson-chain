@@ -212,13 +212,6 @@ class Model():
 
         self.is_infinite = is_infinite
 
-        # # The infinite-chain algorithm requires a unit cell of minimum size
-        # # L = 2. If the original unit cell is of size L = 1, then we force a
-        # # unit cell containing two sites, even if these sites are identical in
-        # # terms of applied fields and couplers.
-        # if (self.L == 1) and (self.is_infinite):
-        #     self._double_the_original_single_site_unit_cell()
-
         self._map_btwn_site_indices_and_unique_x_fields = \
             self._calc_map_btwn_site_indices_and_unique_x_fields()
         
@@ -269,17 +262,6 @@ class Model():
 
 
 
-    # def _double_the_original_single_site_unit_cell(self):
-    #     msg = _model_double_the_original_single_site_unit_cell_warn_msg_1
-    #     warnings.warn(msg)
-    #     self.L = 2
-    #     self.x_fields += self.x_fields
-    #     self.z_fields += self.z_fields
-    #     self.zz_couplers += self.zz_couplers
-
-    #     return None
-
-
     def _calc_map_btwn_site_indices_and_unique_x_fields(self):
         result = list(range(self.L))
         for idx1 in range(self.L):
@@ -294,10 +276,3 @@ class Model():
 _model_determine_L_err_msg_1 = \
     ("Parameters ``z_fields``, ``x_fields``, and ``zz_couplers`` are of "
      "incompatible dimensions.")
-
-# _model_double_the_original_single_site_unit_cell_warn_msg_1 = \
-#     ("The infinite-chain algorithm requires a unit cell of minimum size L=2. "
-#      "Accordingly, the original single-site unit cell specified by the user "
-#      "has been expanded to a two-site unit cell, where each site in the new "
-#      "cell has the same fields and couplers applied to itself as the single "
-#      "site in the original unit cell.")
