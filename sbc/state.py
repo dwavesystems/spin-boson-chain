@@ -139,6 +139,9 @@ import pickle
 # To get the current working directory.
 import os
 
+# For deep copies of objects.
+import copy
+
 
 
 # For creating arrays to be used to construct tensor nodes and networks.
@@ -191,7 +194,6 @@ __status__ = "Non-Production"
 
 # List of public objects in objects.
 __all__ = ["SystemState",
-           "trace",
            "schmidt_spectrum_sum",
            "realignment_criterion",
            "spin_config_prob"]
@@ -273,13 +275,11 @@ class _SystemStatePklPart():
                 
             rho_nodes.append(new_node)
 
-        if self.is_infinite:
-            self.schmidt_spectrum = None
-        else:
+        if not self.is_infinite:
             kwargs = {"nodes": rho_nodes,
-                      "compress_params": None,
-                      "is_infinite": self.is_infinite}
-            self.schmidt_spectrum = sbc._svd.left_to_right_sweep(**kwargs)
+                      "is_infinite": self.is_infinite,
+                      "normalize": True}
+            self.schmidt_spectra = sbc._qr.left_to_right_sweep(**kwargs)
         self.nodes = rho_nodes
 
         return None
@@ -554,7 +554,7 @@ class SystemState():
         if num_k_steps_per_dump < 1:
             raise ValueError(_system_state_reset_evolve_procedure_err_msg_2)
 
-        self._pkl_part.schmidt_spectrum = None
+        self._pkl_part.schmidt_spectra = None
         self._pkl_part.forced_gc = forced_gc
         self._pkl_part.num_k_steps_per_dump = num_k_steps_per_dump
 
@@ -623,9 +623,13 @@ class SystemState():
         else:
             rho_nodes = self._pkl_part.Xi_rho
 
-        kwargs = {"mpo_nodes": self._build_mpo_nodes(),
+        mpo_nodes = \
+            self._build_mpo_encoding_effects_of_bath_fields_and_couplers()
+        spatial_compress_params = self.alg_params.spatial_compress_params
+
+        kwargs = {"mpo_nodes": mpo_nodes,
                   "mps_nodes": rho_nodes,
-                  "compress_params": self.alg_params.spatial_compress_params,
+                  "compress_params": spatial_compress_params,
                   "is_infinite": is_infinite}
         sbc._mpomps.apply_mpo_to_mps_and_compress(**kwargs)
 
@@ -648,15 +652,35 @@ class SystemState():
 
 
 
-    def _build_mpo_nodes(self):
-        k = self._pkl_part.k
-        n = self._pkl_part.n
+    def _build_mpo_encoding_effects_of_bath_fields_and_couplers(self):
         L = self.system_model.L
 
         mpo_nodes = []
+
+        nodes_encoding_effects_of_bath_and_x_and_z_fields = \
+            self._build_nodes_encoding_effects_of_bath_and_x_and_z_fields()
         
         restructured_zz_coupler_phase_factor_nodes = \
             self._build_split_and_restructure_zz_coupler_phase_factor_nodes()
+
+        for r in range(0, L):
+            nodes_to_contract = \
+                [nodes_encoding_effects_of_bath_and_x_and_z_fields[r],
+                 restructured_zz_coupler_phase_factor_nodes[r]]
+            network_struct = [(-3, 1, -2), (-1, 1, -4)]
+            mpo_node = tn.ncon(nodes_to_contract, network_struct)
+            mpo_nodes.append(mpo_node)
+
+        return mpo_nodes
+
+
+
+    def _build_nodes_encoding_effects_of_bath_and_x_and_z_fields(self):
+        k = self._pkl_part.k
+        n = self._pkl_part.n
+        L = self.system_model.L
+        
+        result = []
 
         for r in range(0, L):
             influence_nodes = self._get_influence_nodes(r, k, n)
@@ -672,30 +696,26 @@ class SystemState():
                      influence_nodes[1],
                      j_node_2,
                      influence_nodes[2],
-                     z_field_phase_factor_node,
-                     restructured_zz_coupler_phase_factor_nodes[r]]
-                network_struct = [(-3, 1, 4),
+                     z_field_phase_factor_node]
+                network_struct = [(-1, 1, 4),
                                   (1,),
                                   (4, 2, 5),
                                   (2,),
-                                  (5, 3, -2),
-                                  (3, 6),
-                                  (-1, 6, -4)]
+                                  (5, 3, -3),
+                                  (3, -2)]
             else:
                 nodes_to_contract = \
-                    [influence_nodes[0],
-                     z_field_phase_factor_node,
-                     restructured_zz_coupler_phase_factor_nodes[r]]
-                network_struct = [(-3, 1, -2), (1, 2), (-1, 2, -4)]
+                    [influence_nodes[0], z_field_phase_factor_node]
+                network_struct = [(-1, 1, -3), (1, -2)]
 
-            mpo_node = tn.ncon(nodes_to_contract, network_struct)
-            mpo_nodes.append(mpo_node)
+            node = tn.ncon(nodes_to_contract, network_struct)
+            result.append(node)
 
-        return mpo_nodes
-            
+        return result
 
 
-    def _build_split_and_restructure_zz_coupler_phase_factor_nodes(self):
+
+    def _build_and_split_zz_coupler_phase_factor_nodes(self):
         k = self._pkl_part.k
         n = self._pkl_part.n
         L = self.system_model.L
@@ -706,17 +726,27 @@ class SystemState():
         split_zz_coupler_phase_factor_nodes = [None] * (2*L)
         for r in range(num_couplers):
             node = zz_coupler_phase_factor_node_rank_2_factory.build(r, k+1, n)
-            left_node, right_node = \
-                sbc._qr.split_node(node=node,
-                                   left_edges=(node[0],),
-                                   right_edges=(node[1],))
+            left_node, right_node = sbc._qr.split_node(node=node,
+                                                       left_edges=(node[0],),
+                                                       right_edges=(node[1],))
             split_zz_coupler_phase_factor_nodes[(2*r+1)%(2*L)] = left_node
             split_zz_coupler_phase_factor_nodes[(2*r+2)%(2*L)] = right_node
+
+        return split_zz_coupler_phase_factor_nodes
+
+
+
+    def _build_split_and_restructure_zz_coupler_phase_factor_nodes(self):
+        L = self.system_model.L
+
+        split_zz_coupler_phase_factor_nodes = \
+            self._build_and_split_zz_coupler_phase_factor_nodes()
 
         restructured_zz_coupler_phase_factor_nodes = []
         for r in range(L):
             node_1 = split_zz_coupler_phase_factor_nodes[2*r]
             node_3 = split_zz_coupler_phase_factor_nodes[2*r+1]
+            
             if (node_1 is None) and (node_3 is None):  # L=1; finite chain.
                 tensor = np.zeros([1, 4, 1], dtype=np.complex128)
                 for idx in range(4):
@@ -1008,28 +1038,7 @@ def _apply_1_legged_nodes_to_system_state_mps(physical_1_legged_nodes,
 
 
 
-def trace(system_state):
-    r"""Evaluate the trace of the system's reduced density matrix.
-
-    The QUAPI algorithm used in the ``sbc`` library does not preserve the
-    unitarity of the time evolution of the system state. As a result, the trace 
-    of the system's reduced density matrix that is simulated is not necessarily 
-    unity. Strictly speaking, this point only applies to finite chains: for 
-    infinite chains, the algorithm explicitly renormalizes the system state such
-    that the function under discussion will always yield an evaluated trace of
-    unity. In the case of a finite chain, one can use this function to assess 
-    the accuracy/error resulting from the simulation.
-
-    Parameters
-    ----------
-    system_state : :class:`sbc.state.SystemState`
-        The system state.
-    
-    Returns
-    -------
-    result : `float`
-        The trace of the system's reduced density matrix.
-    """
+def _trace(system_state):
     # If trace was already calculated after evolving state.
     if system_state._pkl_part.trace is not None:
         return system_state._pkl_part.trace
@@ -1124,18 +1133,19 @@ def schmidt_spectrum_sum(system_state, bond_indices=None):
     result = []
 
     try:
-        if system_state._pkl_part.schmidt_spectrum is None:
+        if system_state._pkl_part.schmidt_spectra is None:
             kwargs = {"nodes": system_state.nodes,
                       "compress_params": None,
-                      "is_infinite": system_state._pkl_part.is_infinite}
+                      "is_infinite": system_state._pkl_part.is_infinite,
+                      "normalize": False}
             sbc._svd.right_to_left_sweep(**kwargs)
-            schmidt_spectrum = sbc._svd.left_to_right_sweep(**kwargs)
-            system_state._pkl_part.schmidt_spectrum = schmidt_spectrum  # Cache.
+            schmidt_spectra = sbc._svd.left_to_right_sweep(**kwargs)
+            system_state._pkl_part.schmidt_spectra = schmidt_spectra  # Cache.
         else:
-            schmidt_spectrum = system_state._pkl_part.schmidt_spectrum
+            schmidt_spectra = system_state._pkl_part.schmidt_spectra
         
         for bond_idx in bond_indices:
-            S_node = schmidt_spectrum[bond_idx]
+            S_node = schmidt_spectra[bond_idx]
             edge = S_node[0] ^ S_node[1]
             S_node_after_taking_trace = tn.contract(edge)
             S_sum = float(np.real(S_node_after_taking_trace.tensor))
@@ -1249,7 +1259,7 @@ def spin_config_prob(spin_config, system_state):
 
     prob = _apply_1_legged_nodes_to_system_state_mps(physical_1_legged_nodes,
                                                      system_state)
-    prob = float(np.real(prob)) / trace(system_state)
+    prob = float(np.real(prob)) / _trace(system_state)
 
     return prob
 

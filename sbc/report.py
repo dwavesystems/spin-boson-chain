@@ -68,16 +68,6 @@ class WishList():
 
     Parameters
     ----------
-    state_trace : `bool`, optional
-        If set to ``True``, then the trace of the system's reduced density 
-        matrix is to be reported to the output file ``'state-trace.csv'`` upon 
-        calling the function :func:`sbc.report.report` using the 
-        :obj:`sbc.report.WishList` object. Note that since the QUAPI 
-        algorithm used in the ``sbc`` library does not preserve the unitarity
-        of the time evolution of the system state, the trace may not necessarily
-        evaluate to unity for finite chains. For infinite chains, the
-        algorithm explicitly renormalizes the system state such that the
-        trace is always unity.
     schmidt_spectrum_sum : `bool`, optional
         Note that ``sbc`` can only calculate the Schmidt spectrum sum for
         **finite** chains. If the system is finite and ``schmidt_spectrum_sum``
@@ -196,8 +186,6 @@ class WishList():
 
     Attributes
     ----------
-    state_trace : `bool`, read-only
-        Same description as that in the parameters section above.
     schmidt_spectrum_sum : `bool`, read-only
         Same description as that in the parameters section above.
     realignment_criterion : `bool`, read-only
@@ -216,7 +204,6 @@ class WishList():
         Same description as that in the parameters section above.
     """
     def __init__(self,
-                 state_trace=False,
                  schmidt_spectrum_sum=False,
                  realignment_criterion=False,
                  spin_config_probs=[],
@@ -225,7 +212,6 @@ class WishList():
                  ev_of_nn_two_site_spin_ops=[],
                  ev_of_energy=False,
                  correlation_length=False):
-        self.state_trace = state_trace
         self.schmidt_spectrum_sum = schmidt_spectrum_sum
         self.realignment_criterion = realignment_criterion
         self.spin_config_probs = spin_config_probs
@@ -398,13 +384,6 @@ def report(system_state, report_params):
         _overwrite_data_from_report_files(system_state, report_params)
 
     wish_list = report_params.wish_list
-
-    if wish_list.state_trace:
-        state_trace = sbc.state.trace(system_state)
-        line = np.array([[t, state_trace]])
-        filename = 'state-trace.csv'
-        with open(output_dir + '/' + filename, 'a', 1) as file_obj:
-            np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
 
     if wish_list.schmidt_spectrum_sum or wish_list.realignment_criterion:
         S_sum = sbc.state.schmidt_spectrum_sum(system_state)
@@ -584,12 +563,6 @@ def _overwrite_data_from_report_files(system_state, report_params):
     site_header = np.array([['t'] + ['EV at site #'+str(r) for r in range(L)]])
 
     
-    if wish_list.state_trace:
-        header = np.array([['t', 'state trace']])
-        filename = 'state-trace.csv'
-        with open(output_dir + '/' + filename, 'w', 1) as file_obj:
-            np.savetxt(file_obj, header, fmt="%-20s", delimiter=";")
-
     if wish_list.schmidt_spectrum_sum:
         filename = 'schmidt-spectrum-sum.csv'
         with open(output_dir + '/' + filename, 'w', 1) as file_obj:

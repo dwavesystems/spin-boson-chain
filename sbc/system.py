@@ -63,6 +63,11 @@ system, namely the :math:`h_{z; r}(t)`, :math:`h_{x; r}(t)`, and
 ## Load libraries/packages/modules ##
 #####################################
 
+# For issuing warnings to users.
+import warnings
+
+
+
 # Import class representing time-dependent scalar model parameters.
 import sbc.scalar
 
@@ -126,6 +131,17 @@ class Model():
     set :math:`J_{z,z;L-1,L}\left(t\right)=0`, whereas for infinite chains, we
     take the limit of the number of unit cells to infinity.
 
+    **Suggestion to users:** If simulating an infinite chain that can be
+    theoretically modelled with a single-site unit cell, then this should be
+    implemented in ``sbc`` using a single-site unit cell, rather than a
+    redundant multi-site unit cell. For example, an infinite chain that is
+    initially prepared in a state that is invariant under any finite 
+    translations that is subject to spatially uniform fields and couplings
+    should be modelled in ``sbc`` using a single-site unit cell. Generally
+    speaking, the algorithm used for the case of an infinite chain with a 
+    multi-site unit cell is numerically less stable than that of an infinite
+    chain with a single-site unit cell.
+
     Parameters
     ----------
     z_fields : `array_like` (`float` | :class:`sbc.scalar.Scalar`, shape=(``L``,)) | `None`, optional
@@ -188,10 +204,10 @@ class Model():
                  is_infinite=False):
         self.L = self._determine_L(z_fields, x_fields, zz_couplers, is_infinite)
         num_couplers = self.L - 1 + int(is_infinite)
-        
+
         self.x_fields = self._construct_attribute(x_fields, self.L)
         self.z_fields = self._construct_attribute(z_fields, self.L)
-
+        
         self.zz_couplers = self._construct_attribute(zz_couplers, num_couplers)
 
         self.is_infinite = is_infinite

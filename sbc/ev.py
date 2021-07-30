@@ -184,7 +184,7 @@ def multi_site_spin_op(op_strings, system_state):
     kwargs = {"physical_1_legged_nodes": one_legged_nodes,
               "system_state": system_state}
     result = sbc.state._apply_1_legged_nodes_to_system_state_mps(**kwargs)
-    result = complex(result) / sbc.state.trace(system_state)
+    result = complex(result) / sbc.state._trace(system_state)
 
     return result
 
