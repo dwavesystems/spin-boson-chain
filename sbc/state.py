@@ -312,8 +312,10 @@ class _SystemStatePklPart():
             kwargs = {"nodes": rho_nodes,
                       "compress_params": None,
                       "is_infinite": self.is_infinite,
-                      "starting_node_idx": None}
-            # self.Lambda_Theta_vdash = []
+                      "starting_node_idx": None,
+                      "normalize": True}
+                      # "normalize": True}
+            self.Lambda_Theta_vdash = []
             self.schmidt_spectra = sbc._svd.left_to_right_sweep(**kwargs)
         self.nodes = rho_nodes
 
@@ -1022,7 +1024,12 @@ class SystemState():
 
     def _update_infinite_chain_alg_attrs(self):
         self._update_transfer_matrix()
-        w, vl, vr = scipy.linalg.eig(self._pkl_part.transfer_matrix, left=True)
+        try:
+            w, vl, vr = scipy.linalg.eig(self._pkl_part.transfer_matrix, left=True)
+        except ValueError as err:
+            print("transfer matrix shape:", self._pkl_part.transfer_matrix.shape)
+            print("transfer matrix tensor:", self._pkl_part.transfer_matrix.tensor)
+            raise
 
         dominant_eigval_idx = np.argmax(np.abs(w))
         self._pkl_part.dominant_eigval = w[dominant_eigval_idx]
@@ -1379,7 +1386,8 @@ def schmidt_spectrum_sum(system_state, bond_indices=None):
             kwargs = {"nodes": system_state.nodes,
                       "compress_params": None,
                       "is_infinite": system_state._pkl_part.is_infinite,
-                      "starting_node_idx": None}
+                      "starting_node_idx": None,
+                      "normalize": False}
             sbc._svd.right_to_left_sweep(**kwargs)
             schmidt_spectra = sbc._svd.left_to_right_sweep(**kwargs)
             system_state._pkl_part.schmidt_spectra = schmidt_spectra  # Cache.

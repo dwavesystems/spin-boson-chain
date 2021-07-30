@@ -265,6 +265,20 @@ def dominant_eigpair_of_transfer_matrix(Lambda_Theta,
     dominant_eigval = factorization_with_restart_alg.dominant_ritz_eigval
     dominant_eigvec = factorization_with_restart_alg.dominant_ritz_eigvec
 
+    if unit_cell_type == "left":
+        mu_L = dominant_eigval
+        V_L = dominant_eigvec
+        V_L_approx = left_segment_ev_of_id(V_L, Lambda_Theta) / tn.Node(mu_L)
+        diff = tn.norm(V_L - V_L_approx)
+    else:
+        mu_R = dominant_eigval
+        V_R = dominant_eigvec
+        V_R_approx = right_segment_ev_of_id(V_R, Lambda_Theta) / tn.Node(mu_R)
+        diff = tn.norm(V_R - V_R_approx)
+
+    print("dominant eigvec err =", diff)
+    # print()
+
     return dominant_eigval, dominant_eigvec
 
         
@@ -332,9 +346,10 @@ class FactorizationAlg():
         # else:
         #     # chi = self.M.shape[-1]
         #     chi = self.Gammas[(self.r-1)%L].shape[-1]
-            
-        self.f = tn.Node(np.random.rand(chi, chi)
-                         +1j*np.random.rand(chi, chi))
+
+        # Ensure the random f is Hermitian and semidefinite.
+        mat = np.random.rand(chi, chi) + 1j*np.random.rand(chi, chi)
+        self.f = tn.Node(np.conj(np.transpose(mat)) @ mat)
         self.f /= tn.norm(self.f)
 
         return None
@@ -439,6 +454,10 @@ class FactorizationAlg():
         self.beta = beta
         self.step_count = step_count
 
+        tol = 1.0e-14
+        if self.beta < tol:
+            self.terminated_early = True
+
         return None
 
 
@@ -505,6 +524,7 @@ class FactorizationWithRestartAlg():
 
         for _ in range(krylov_dim):
             if self.factorization_alg.terminated_early:
+                print("terminated early check pt #1")
                 break
             self.factorization_alg.step()
 
@@ -561,8 +581,11 @@ class FactorizationWithRestartAlg():
                                                                 f,
                                                                 beta,
                                                                 step_count)
+
+        print("Restarted")
         for _ in range(p):
             if self.factorization_alg.terminated_early:
+                print("terminated early check pt #2")
                 break
             self.factorization_alg.step()
 
@@ -574,7 +597,7 @@ class FactorizationWithRestartAlg():
 
     def has_converged(self):
         if self.factorization_alg.terminated_early:
-            # print("terminated early")
+            print("terminated early check pt #3")
             self.update_ritz_eigenpairs()
             if self.factorization_alg.unit_cell_type == "left":
                 self.dominant_ritz_eigvec = \

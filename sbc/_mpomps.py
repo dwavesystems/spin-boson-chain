@@ -29,7 +29,7 @@ import tensornetwork as tn
 # and single-node SVD.
 import sbc._svd
 
-# For performing QR factorizations.
+# For performing QR sweeps, and single-node QR factorizations.
 import sbc._qr
 
 # For finding the dominant eigenvectors of specially structured tensor networks.
@@ -139,11 +139,12 @@ def apply_infinite_mpo_to_infinite_mps_and_compress(mpo_nodes,
                                                     mps_nodes,
                                                     Lambda_Theta,
                                                     compress_params):
-    print("before")
-    for r in range(len(mps_nodes)):
-        print("mpo_nodes[{}].shape =".format(r), mpo_nodes[r].shape,
-              "mps_nodes[{}].shape =".format(r), mps_nodes[r].shape)
+    # print("before")
+    # for r in range(len(mps_nodes)):
+    #     print("mpo_nodes[{}].shape =".format(r), mpo_nodes[r].shape,
+    #           "mps_nodes[{}].shape =".format(r), mps_nodes[r].shape)
     apply_directly_finite_mpo_to_finite_mps(mpo_nodes, mps_nodes)
+    # apply_directly_infinite_mpo_to_infinite_mps(mpo_nodes, Lambda_Theta)
     # print("compress_params:", compress_params.__dict__)
     # kwargs = {"nodes": mps_nodes,
     #           "compress_params": None,
@@ -160,7 +161,8 @@ def apply_infinite_mpo_to_infinite_mps_and_compress(mpo_nodes,
     # return None
 
     L = len(mps_nodes)
-    for starting_node_idx in range(L):
+    # for starting_node_idx in range(L):
+    for starting_node_idx in range(1):
         Lambda_Theta = sbc._svd.Lambda_Theta_form(mps_nodes, starting_node_idx)
         canonicalize_and_compress_infinite_mps(Lambda_Theta, compress_params)
 
@@ -187,10 +189,10 @@ def apply_infinite_mpo_to_infinite_mps_and_compress(mpo_nodes,
     # sbc._svd.left_to_right_sweep(**kwargs)
     # sbc._svd.right_to_left_sweep(**kwargs)
 
-    print("after")
-    for r in range(len(mps_nodes)):
-        print("mpo_nodes[{}].shape =".format(r), mpo_nodes[r].shape,
-              "mps_nodes[{}].shape =".format(r), mps_nodes[r].shape)
+    # print("after")
+    # for r in range(len(mps_nodes)):
+    #     print("mpo_nodes[{}].shape =".format(r), mpo_nodes[r].shape,
+    #           "mps_nodes[{}].shape =".format(r), mps_nodes[r].shape)
 
     return None
     
@@ -231,10 +233,17 @@ def apply_finite_mpo_to_finite_mps_and_compress(mpo_nodes,
                                                 mps_nodes,
                                                 compress_params):
     # Put MPO in left-canonical form. MPS is assumed to be already in said form.
-    sbc._svd.left_to_right_sweep(mpo_nodes,
-                                 compress_params=None,
-                                 is_infinite=False,
-                                 starting_node_idx=None)
+    # kwargs = {"nodes": mpo_nodes,
+    #           "compress_params": None,
+    #           "is_infinite": False,
+    #           "starting_node_idx": None,
+    #           "normalize": False}
+    kwargs = {"nodes": mpo_nodes,
+              "is_infinite": False,
+              "starting_node_idx": None,
+              "normalize": False}
+    # sbc._svd.left_to_right_sweep(**kwargs)
+    sbc._qr.left_to_right_sweep(**kwargs)
 
     if compress_params.max_num_var_sweeps > 0:
         norm_of_mps_to_compress = \
@@ -246,10 +255,9 @@ def apply_finite_mpo_to_finite_mps_and_compress(mpo_nodes,
     if compress_params.method == "direct":
         apply_directly_finite_mpo_to_finite_mps(mpo_nodes, mps_nodes)
         # apply_directly_mpo_to_mps(mpo_nodes, mps_nodes)
-        sbc._svd.right_to_left_sweep(mps_nodes,
-                                     compress_params=None,
-                                     is_infinite=False,
-                                     starting_node_idx=None)
+        kwargs["nodes"] = mps_nodes
+        # sbc._svd.right_to_left_sweep(**kwargs)
+        sbc._qr.right_to_left_sweep(**kwargs)
     else:
         zip_up(mpo_nodes, mps_nodes, compress_params)
 
@@ -479,11 +487,18 @@ def return_svd_sweep(mpo_nodes, mps_nodes, initial_mps_nodes, compress_params):
     imax = len(mps_nodes) - 2
     L = trivial_L(mpo_nodes, initial_mps_nodes)
     L_cache = [L]
+
+    # Normalize MPS now if no variational compression is to be performed.
+    # Otherwise, normalization is performed after variational compression.
+    normalize_schmidt_spectra = (compress_params.max_num_var_sweeps == 0)
+    # normalize_schmidt_spectra = False
     
     for i in range(imin, imax+1):
         kwargs = {"nodes": mps_nodes,
                   "current_orthogonal_center_idx": i,
-                  "compress_params": compress_params}
+                  "compress_params": compress_params,
+                  "is_infinite": False,
+                  "normalize_schmidt_spectra": normalize_schmidt_spectra}
         sbc._svd.shift_orthogonal_center_to_the_right(**kwargs)
         
         if compress_params.max_num_var_sweeps > 0:
@@ -498,6 +513,11 @@ def return_svd_sweep(mpo_nodes, mps_nodes, initial_mps_nodes, compress_params):
                                     node2=conj_mps_node,
                                     output_edge_order=output_edge_order)
             L_cache.append(L)
+
+    if compress_params.max_num_var_sweeps == 0:
+        # kwargs["current_orthogonal_center_idx"] = imax+1
+        # sbc._svd.shift_orthogonal_center_to_the_right(**kwargs)
+        mps_nodes[-1] /= tn.norm(mps_nodes[-1])
 
     return L_cache
 
@@ -538,6 +558,9 @@ def variational_compression(mpo_nodes,
             update_node_and_shift_right_in_variational_compression(**kwargs)
 
         sweep_count += 1
+
+    # Normalize MPS.
+    mps_nodes[-1] /= tn.norm(mps_nodes[-1])
 
     return None
 
@@ -907,8 +930,10 @@ def canonicalize_and_compress_infinite_mps(Lambda_Theta, compress_params):
     mu_L, V_L = calc_mu_L_and_V_L(Lambda_Theta)
     mu_R, V_R = calc_mu_R_and_V_R(Lambda_Theta)
     abs_mu = 0.5 * abs(mu_L + mu_R)
-    X = calc_X(V_L)
-    Y = calc_Y(V_R)
+    # X = calc_X(V_L)
+    X, X_inv = calc_X_and_X_inv(V_L)
+    # Y = calc_Y(V_R)
+    Y, Y_inv = calc_Y_and_Y_inv(V_R)
 
     old_Lambda = Lambda_Theta[0]
     old_Theta_nodes = Lambda_Theta[1]
@@ -920,19 +945,26 @@ def canonicalize_and_compress_infinite_mps(Lambda_Theta, compress_params):
                                               compress_params=compress_params)
 
     new_Lambda = S / tn.norm(S)
-    new_Lambda_inv_tensor = np.diag(1 / np.diag(np.array(new_Lambda.tensor)))
-    new_Lambda_inv = tn.Node(new_Lambda_inv_tensor)
 
-    conj_U = tn.conj(U)
-    V_T = tn.conj(V_dagger)
+    L = len(old_Theta_nodes)
 
-    nodes_to_contract = [new_Lambda_inv, conj_U, X, old_Lambda]
-    network_struct = [(-1, 3), (1, 3), (1, 2), (2, -2)]
-    Z_L = tn.ncon(nodes_to_contract, network_struct)
+    if L == 1:
+        Z_L = tn.ncon([V_dagger, Y_inv], [(-1, 1), (1, -2)])
+        Z_R = tn.ncon([X_inv, U], [(-1, 1), (1, -2)])
+    else:
+        new_Lambda_inv_tensor = np.diag(1 / np.diag(np.array(new_Lambda.tensor)))
+        new_Lambda_inv = tn.Node(new_Lambda_inv_tensor)
+        
+        conj_U = tn.conj(U)
+        V_T = tn.conj(V_dagger)
 
-    nodes_to_contract = [old_Lambda, Y, V_T, new_Lambda_inv]
-    network_struct = [(-1, 1), (1, 2), (3, 2), (3, -2)]
-    Z_R = tn.ncon(nodes_to_contract, network_struct)
+        nodes_to_contract = [new_Lambda_inv, conj_U, X, old_Lambda]
+        network_struct = [(-1, 3), (1, 3), (1, 2), (2, -2)]
+        Z_L = tn.ncon(nodes_to_contract, network_struct)
+
+        nodes_to_contract = [old_Lambda, Y, V_T, new_Lambda_inv]
+        network_struct = [(-1, 1), (1, 2), (3, 2), (3, -2)]
+        Z_R = tn.ncon(nodes_to_contract, network_struct)
 
     new_Theta_nodes = old_Theta_nodes
 
@@ -942,21 +974,23 @@ def canonicalize_and_compress_infinite_mps(Lambda_Theta, compress_params):
     nodes_to_contract = [Z_L, new_Theta_nodes[0]]
     network_struct = [(-1, 1), (1, -2, -3)]
     new_Theta_nodes[0] = tn.ncon(nodes_to_contract, network_struct)
-    new_Theta_nodes[0] /= (np.sqrt(abs_mu) * tn.norm(S))
+    # new_Theta_nodes[0] /= (np.sqrt(abs_mu) * tn.norm(S))
 
     nodes_to_contract = [new_Theta_nodes[-1], Z_R]
     network_struct = [(-1, -2, 1), (1, -3)]
     new_Theta_nodes[-1] = tn.ncon(nodes_to_contract, network_struct)
 
-    kwargs = {"nodes": new_Theta_nodes,
-              "compress_params": None,
-              "is_infinite": False,
-              "starting_node_idx": None}
-    sbc._svd.left_to_right_sweep(**kwargs)
+    compress_and_normalize_Theta(new_Lambda, new_Theta_nodes, compress_params)
+    # kwargs = {"nodes": new_Theta_nodes,
+    #           "compress_params": None,
+    #           "is_infinite": False,
+    #           "starting_node_idx": None,
+    #           "normalize": False}
+    # sbc._svd.right_to_left_sweep(**kwargs)
     # kwargs["compress_params"] = compress_params
-    # for idx, new_Theta_node in enumerate(new_Theta_nodes):
-    #     print("new Theta node max #{}:".format(idx), np.amax(np.abs(new_Theta_node.tensor)))
-    sbc._svd.right_to_left_sweep(**kwargs)
+    # # for idx, new_Theta_node in enumerate(new_Theta_nodes):
+    # #     print("new Theta node max #{}:".format(idx), np.amax(np.abs(new_Theta_node.tensor)))
+    # sbc._svd.left_to_right_sweep(**kwargs)
 
     Lambda_Theta[0] = new_Lambda
     Lambda_Theta[1] = new_Theta_nodes
@@ -968,6 +1002,56 @@ def canonicalize_and_compress_infinite_mps(Lambda_Theta, compress_params):
 
     # for idx, Theta_node in enumerate(new_Theta_nodes):
     #     print("new Theta node shape #{} =".format(idx), Theta_node.shape)
+
+    return None
+
+
+
+def compress_and_normalize_Theta(Lambda, Theta_nodes, compress_params):
+    # kwargs = {"nodes": Theta_nodes,
+    #           "compress_params": None,
+    #           "is_infinite": False,
+    #           "starting_node_idx": None,
+    #           "normalize": False}
+    # sbc._svd.right_to_left_sweep(**kwargs)
+    # kwargs["compress_params"] = compress_params
+    # sbc._svd.left_to_right_sweep(**kwargs)
+    # Theta_nodes[-1] /= tn.norm(Theta_nodes[-1])
+
+    kwargs = {"nodes": Theta_nodes,
+              "is_infinite": False,
+              "starting_node_idx": None,
+              "normalize": False}
+    sbc._qr.left_to_right_sweep(**kwargs)
+    kwargs["compress_params"] = compress_params
+    # kwargs["compress_params"] = None
+    kwargs["normalize"] = True
+    sbc._svd.right_to_left_sweep(**kwargs)
+
+    M = tn.ncon([Lambda, Theta_nodes[0]], [(-1, 1), (1, -2, -3)])
+    Theta_nodes[0] /= tn.norm(M)
+
+
+    C = tn.Node(np.eye(Lambda.shape[0]))
+    network = tn.ncon([C, Lambda], [(-1, 1), (1, -2)])
+    network = tn.ncon([Lambda, network], [(-1, 1), (1, -2)])
+
+    for Theta_node in Theta_nodes:
+        M = Theta_node
+        network = tn.ncon([network, M], [(-1, 1), (1, -2, -3)])
+        conj_M = tn.conj(M)
+        network[0] ^ conj_M[0]
+        network[1] ^ conj_M[1]
+        output_edge_order = (conj_M[2], network[2])
+        network = tn.contract_between(node1=network,
+                                      node2=conj_M,
+                                      output_edge_order=output_edge_order)
+
+    rescaled_C = tn.Node(network.tensor[0][0] * C.tensor)
+    diff = tn.norm(network-rescaled_C)
+    Theta_norm = tn.ncon([network, C], [(1, 2), (1, 2)]).tensor
+    print("Theta err =", diff)
+    print("Theta norm =", Theta_norm)
 
     return None
 
@@ -1264,6 +1348,7 @@ def calc_mu_L_and_V_L(Lambda_Theta):
               "epsilon_D": 1.0e-14}
 
     mu_L, V_L = sbc._arnoldi.dominant_eigpair_of_transfer_matrix(**kwargs)
+    print("mu_L =", mu_L)
 
     # print("mu_L =", mu_L)
 
@@ -1411,6 +1496,7 @@ def calc_mu_R_and_V_R(Lambda_Theta):
 
     V_R = V_R_2
     mu_R = mu_R_2
+    print("mu_R =", mu_R)
     
     # print("mu_R #2 =", mu_R_2)
     # print("mu_R =", mu)
@@ -1501,29 +1587,79 @@ def calc_mu_R_and_V_R(Lambda_Theta):
 
 
 
-def calc_X(V_L):
+# def calc_X(V_L):
+def calc_X_and_X_inv(V_L):
     if V_L.backend.name != "numpy":
         sbc._backend.tf_to_np(V_L)
 
-    try:
-        D, W = scipy.linalg.eigh(V_L.tensor)
-        X_dagger = W @ np.sqrt(np.diag(np.abs(D)))
-        X = np.conj(np.transpose(X_dagger))
-        X = tn.Node(X)  # Convert from numpy array to tensornetwork node.
-    except ValueError as err:
-        print(V_L.tensor)
-        raise err
+    diff = tn.norm(V_L - tn.Node(np.conj(np.transpose(V_L.tensor))))
+    print("V_L hermiticity err =", diff)
 
-    return X
+    D, W = scipy.linalg.eigh(V_L.tensor, driver='ev')
+    s = tn.Node(np.sign(np.sum(D)))
+    D = np.abs(D)
+    tol = 1.0e-14
+    # print("D_X before =", D)
+    # W = W[:, D>tol]
+    # D = D[D>tol]
+    # print("D_X after =", D)
+
+    D[D<tol] = tol
+    X_dagger = W @ np.diag(np.sqrt(D))
+    X = np.conj(np.transpose(X_dagger))
+    X = tn.Node(X)
+
+    diff = tn.norm(s*V_L - tn.Node(X_dagger @ X.tensor))
+    print("V_L reconstruction err =", diff)
+
+    # Note that X_inv is really a left pseudo-inverse of X.
+    X_inv = W @ np.diag(1/np.sqrt(D))
+    X_inv = tn.Node(X_inv)
+
+    Id_approx = tn.ncon([X_inv, X], [(-1, 1), (1, -2)])
+    Id = tn.Node(np.eye(X.shape[-1]))
+    diff = tn.norm(Id-Id_approx)
+    print("|X_inv X - Id| =", diff)
+
+    return X, X_inv
+    # return X
 
 
 
-def calc_Y(V_R):
+# def calc_Y(V_R):
+def calc_Y_and_Y_inv(V_R):
     if V_R.backend.name != "numpy":
         sbc._backend.tf_to_np(V_R)
+
+    diff = tn.norm(V_R - tn.Node(np.conj(np.transpose(V_R.tensor))))
+    print("V_R hermiticity err =", diff)
         
-    D, W = scipy.linalg.eigh(V_R.tensor)
-    Y = W @ np.sqrt(np.diag(np.abs(D)))
+    D, W = scipy.linalg.eigh(V_R.tensor, driver='ev')
+    s = tn.Node(np.sign(np.sum(D)))
+    D = np.abs(D)
+    tol = 1.0e-14
+    # print("D_Y before =", D)
+    # W = W[:, D>tol]
+    # D = D[D>tol]
+    # print("D_Y after =", D)
+
+    D[D<tol] = tol
+    Y = W @ np.diag(np.sqrt(D))
     Y = tn.Node(Y)  # Convert from numpy array to tensornetwork node.
 
-    return Y
+    diff = tn.norm(s*V_R - tn.Node(Y.tensor @ np.transpose(np.conj(Y.tensor))))
+    print("V_R reconstruction err =", diff)
+
+    # Note that Y_inv is really a right pseudo-inverse of Y.
+    W_dagger = np.conj(np.transpose(W))
+    Y_inv = np.diag(1/np.sqrt(D)) @ W_dagger
+    Y_inv = tn.Node(Y_inv)
+
+    Id_approx = tn.ncon([Y, Y_inv], [(-1, 1), (1, -2)])
+    # print("Id_approx =", Id_approx.tensor)
+    Id = tn.Node(np.eye(Y.shape[0]))
+    diff = tn.norm(Id-Id_approx)
+    print("|Y Y_inv - Id| =", diff)
+
+    return Y, Y_inv
+    #return Y

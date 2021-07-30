@@ -131,6 +131,17 @@ class Model():
     set :math:`J_{z,z;L-1,L}\left(t\right)=0`, whereas for infinite chains, we
     take the limit of the number of unit cells to infinity.
 
+    **Suggestion to users:** If simulating an infinite chain that can be
+    theoretically modelled with a single-site unit cell, then this should be
+    implemented in ``sbc`` using a single-site unit cell, rather than a
+    redundant multi-site unit cell. For example, an infinite chain that is
+    initially prepared in a state that is invariant under any finite 
+    translations that is subject to spatially uniform fields and couplings
+    should be modelled in ``sbc`` using a single-site unit cell. Generally
+    speaking, the algorithm used for the case of an infinite chain with a 
+    multi-site unit cell is numerically less stable than that of an infinite
+    chain with a single-site unit cell.
+
     Parameters
     ----------
     z_fields : `array_like` (`float` | :class:`sbc.scalar.Scalar`, shape=(``L``,)) | `None`, optional
@@ -201,12 +212,12 @@ class Model():
 
         self.is_infinite = is_infinite
 
-        # The infinite-chain algorithm requires a unit cell of minimum size
-        # L = 2. If the original unit cell is of size L = 1, then we force a
-        # unit cell containing two sites, even if these sites are identical in
-        # terms of applied fields and couplers.
-        if (self.L == 1) and (self.is_infinite):
-            self._double_the_original_single_site_unit_cell()
+        # # The infinite-chain algorithm requires a unit cell of minimum size
+        # # L = 2. If the original unit cell is of size L = 1, then we force a
+        # # unit cell containing two sites, even if these sites are identical in
+        # # terms of applied fields and couplers.
+        # if (self.L == 1) and (self.is_infinite):
+        #     self._double_the_original_single_site_unit_cell()
 
         self._map_btwn_site_indices_and_unique_x_fields = \
             self._calc_map_btwn_site_indices_and_unique_x_fields()
@@ -258,15 +269,15 @@ class Model():
 
 
 
-    def _double_the_original_single_site_unit_cell(self):
-        msg = _model_double_the_original_single_site_unit_cell_warn_msg_1
-        warnings.warn(msg)
-        self.L = 2
-        self.x_fields += self.x_fields
-        self.z_fields += self.z_fields
-        self.zz_couplers += self.zz_couplers
+    # def _double_the_original_single_site_unit_cell(self):
+    #     msg = _model_double_the_original_single_site_unit_cell_warn_msg_1
+    #     warnings.warn(msg)
+    #     self.L = 2
+    #     self.x_fields += self.x_fields
+    #     self.z_fields += self.z_fields
+    #     self.zz_couplers += self.zz_couplers
 
-        return None
+    #     return None
 
 
     def _calc_map_btwn_site_indices_and_unique_x_fields(self):
@@ -284,9 +295,9 @@ _model_determine_L_err_msg_1 = \
     ("Parameters ``z_fields``, ``x_fields``, and ``zz_couplers`` are of "
      "incompatible dimensions.")
 
-_model_double_the_original_single_site_unit_cell_warn_msg_1 = \
-    ("The infinite-chain algorithm requires a unit cell of minimum size L=2. "
-     "Accordingly, the original single-site unit cell specified by the user "
-     "has been expanded to a two-site unit cell, where each site in the new "
-     "cell has the same fields and couplers applied to itself as the single "
-     "site in the original unit cell.")
+# _model_double_the_original_single_site_unit_cell_warn_msg_1 = \
+#     ("The infinite-chain algorithm requires a unit cell of minimum size L=2. "
+#      "Accordingly, the original single-site unit cell specified by the user "
+#      "has been expanded to a two-site unit cell, where each site in the new "
+#      "cell has the same fields and couplers applied to itself as the single "
+#      "site in the original unit cell.")

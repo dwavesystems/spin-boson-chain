@@ -46,7 +46,11 @@ __status__ = "Non-Production"
 ## Define classes and functions ##
 ##################################
 
-def left_to_right_sweep(nodes, compress_params, is_infinite, starting_node_idx):
+def left_to_right_sweep(nodes,
+                        compress_params,
+                        is_infinite,
+                        starting_node_idx,
+                        normalize):
     truncated_schmidt_spectra = []
         
     num_nodes = len(nodes)
@@ -55,7 +59,9 @@ def left_to_right_sweep(nodes, compress_params, is_infinite, starting_node_idx):
 
     kwargs = {"nodes": nodes,
               "current_orthogonal_center_idx": imin,
-              "compress_params": compress_params}
+              "compress_params": compress_params,
+              "is_infinite": is_infinite,
+              "normalize_schmidt_spectra": normalize}
     
     for i in range(imin, imax+1):
         kwargs["current_orthogonal_center_idx"] = i
@@ -63,11 +69,20 @@ def left_to_right_sweep(nodes, compress_params, is_infinite, starting_node_idx):
         truncated_schmidt_spectra.append(S)
         # print("inside 'left_to_right_sweep'; i={}; mps node shape = ".format(i), nodes[i%num_nodes].shape)
 
+    if (not is_infinite) and normalize:
+        nodes[-1] /= tn.norm(nodes[-1])
+        # kwargs["current_orthogonal_center_idx"] = imax+1
+        # U, S, V_dagger = shift_orthogonal_center_to_the_right(**kwargs)
+
     return truncated_schmidt_spectra
 
 
 
-def right_to_left_sweep(nodes, compress_params, is_infinite, starting_node_idx):
+def right_to_left_sweep(nodes,
+                        compress_params,
+                        is_infinite,
+                        starting_node_idx,
+                        normalize):
     truncated_schmidt_spectra = []
 
     num_nodes = len(nodes)
@@ -78,7 +93,9 @@ def right_to_left_sweep(nodes, compress_params, is_infinite, starting_node_idx):
 
     kwargs = {"nodes": nodes,
               "current_orthogonal_center_idx": imax,
-              "compress_params": compress_params}
+              "compress_params": compress_params,
+              "is_infinite": is_infinite,
+              "normalize_schmidt_spectra": normalize}
     
     for i in range(imax, imin-1, -1):
         kwargs["current_orthogonal_center_idx"] = i
@@ -86,13 +103,20 @@ def right_to_left_sweep(nodes, compress_params, is_infinite, starting_node_idx):
         truncated_schmidt_spectra.insert(0, S)
         # print("inside 'right_to_left_sweep'; i={}; mps node shape = ".format(i), nodes[i%num_nodes].shape)
 
+    if (not is_infinite) and normalize:
+        nodes[0] /= tn.norm(nodes[0])
+        # kwargs["current_orthogonal_center_idx"] = imin-1
+        # U, S, V_dagger = shift_orthogonal_center_to_the_left(**kwargs)
+
     return truncated_schmidt_spectra
 
 
 
 def shift_orthogonal_center_to_the_right(nodes,
                                          current_orthogonal_center_idx,
-                                         compress_params):
+                                         compress_params,
+                                         is_infinite,
+                                         normalize_schmidt_spectra):
     # Function does not check correctness of 'current_orthogonal_center_idx'.
     i = current_orthogonal_center_idx
 
@@ -107,7 +131,13 @@ def shift_orthogonal_center_to_the_right(nodes,
                                      right_edges,
                                      compress_params)
 
+    if normalize_schmidt_spectra:
+        S /= tn.norm(S)
+
     nodes[i%num_nodes] = U
+
+    if (not is_infinite) and (i == num_nodes-1):
+        return U, S, V_dagger
 
     node_iP1 = nodes[(i+1)%num_nodes]
     nodes_to_contract = (S, V_dagger, node_iP1)
@@ -123,7 +153,9 @@ def shift_orthogonal_center_to_the_right(nodes,
 
 def shift_orthogonal_center_to_the_left(nodes,
                                         current_orthogonal_center_idx,
-                                        compress_params):
+                                        compress_params,
+                                        is_infinite,
+                                        normalize_schmidt_spectra):
     # Function does not check correctness of 'current_orthogonal_center_idx'.
     i = current_orthogonal_center_idx
     
@@ -137,8 +169,14 @@ def shift_orthogonal_center_to_the_left(nodes,
                                      left_edges,
                                      right_edges,
                                      compress_params)
+
+    if normalize_schmidt_spectra:
+        S /= tn.norm(S)
         
     nodes[i%num_nodes] = V_dagger
+
+    if (not is_infinite) and (i == 0):
+        return U, S, V_dagger
 
     node_iM1 = nodes[(i-1)%num_nodes]
     nodes_to_contract = (node_iM1, U, S)
@@ -196,7 +234,7 @@ def split_node_full(node, left_edges, right_edges, compress_params):
         S = tn.Node(S.tensor[:cutoff_idx, :cutoff_idx])
         V_dagger = tn.Node(V_dagger.tensor[:cutoff_idx, ...])
 
-    S = rescale_S(S, discarded_singular_values)
+    # S = rescale_S(S, discarded_singular_values)
 
     # Switch back to original backend (if different from numpy).
     if original_backend_name != "numpy":
@@ -248,11 +286,11 @@ def split_node_full_backup(node,
 
     new_U_shape = U_S_V_dagger_shape[:num_left_edges] + (cutoff_idx,)
     new_V_dagger_shape = (cutoff_idx,) + U_S_V_dagger_shape[-num_right_edges:]
-    
+
+    discarded_singular_values = S[cutoff_idx:]
     U = tn.Node(U[:, :cutoff_idx].reshape(new_U_shape))
     S = tn.Node(np.diag(S[:cutoff_idx]))
     V_dagger = tn.Node(V_dagger[:cutoff_idx, :].reshape(new_V_dagger_shape))
-    discarded_singular_values = S[cutoff_idx:]
 
     return U, S, V_dagger, discarded_singular_values
 
@@ -339,7 +377,8 @@ def Lambda_Theta_form(mps_nodes, starting_node_idx):
     left_to_right_sweep(nodes=mps_nodes,
                         compress_params=None,
                         is_infinite=False,  # Avoid doing the extra shift.
-                        starting_node_idx=starting_node_idx)
+                        starting_node_idx=starting_node_idx,
+                        normalize=False)
 
     r0 = starting_node_idx
     L = len(mps_nodes)
@@ -350,6 +389,16 @@ def Lambda_Theta_form(mps_nodes, starting_node_idx):
                                      compress_params=None)
 
     Theta_nodes = []
+
+    if L == 1:
+        Lambda = S
+        Theta_node = tn.ncon([V_dagger, U], [(-1, 1), (1, -2, -3)])
+        Theta_nodes.append(Theta_node)
+        mps_nodes[0] = tn.ncon([Lambda, Theta_node], [(-1, 1), (1, -2, -3)])
+        Lambda_Theta = [Lambda, Theta_nodes]
+        
+        return Lambda_Theta
+
     for r in range(r0, r0+L):
         Theta_nodes.append(mps_nodes[r%L])
 
@@ -358,9 +407,7 @@ def Lambda_Theta_form(mps_nodes, starting_node_idx):
     Theta_nodes[0] = tn.ncon([V_dagger, mps_nodes[r0]], [(-1, 1), (1, -2, -3)])
 
     mps_nodes[(r0-1)%L] = U
-    nodes_to_contract = [S, V_dagger, mps_nodes[r0]]
-    network_struct = [(-1, 1), (1, 2), (2, -2, -3)]
-    mps_nodes[r0] = tn.ncon(nodes_to_contract, network_struct)
+    mps_nodes[r0] = tn.ncon([S, Theta_nodes[0]], [(-1, 1), (1, -2, -3)])
 
     Lambda_Theta = [Lambda, Theta_nodes]
 
