@@ -221,13 +221,13 @@ class Model():
     
     def _determine_L(self, z_fields, x_fields, zz_couplers, is_infinite):
         candidate_Ls = set()
-        if z_fields != None:
+        if z_fields is not None:
             if len(z_fields) != 0:
                 candidate_Ls.add(len(z_fields))
-        if x_fields != None:
+        if x_fields is not None:
             if len(x_fields) != 0:
                 candidate_Ls.add(len(x_fields))
-        if zz_couplers != None:
+        if zz_couplers is not None:
             if len(zz_couplers) != 0:
                 candidate_Ls.add(len(zz_couplers)+1-int(is_infinite))
 
@@ -243,12 +243,12 @@ class Model():
 
 
     def _construct_attribute(self, ctor_param, array_size):
-        if ctor_param == None:
+        if ctor_param is None:
             ctor_param = [0] * array_size
         if len(ctor_param) == 0:
             ctor_param = [0] * array_size
 
-        attribute = ctor_param[:]
+        attribute = list(ctor_param)
         elem_already_set = [False] * self.L
         for idx1 in range(0, array_size):
             if not isinstance(attribute[idx1], sbc.scalar.Scalar):

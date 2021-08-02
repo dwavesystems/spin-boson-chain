@@ -641,7 +641,7 @@ class SpectralDensityCmpnt0T():
         self.func_kwargs = copy.deepcopy(func_kwargs)
 
         self.zero_pt_derivative = zero_pt_derivative
-        if zero_pt_derivative == None:
+        if zero_pt_derivative is None:
             self.zero_pt_derivative = self._eval(1.0e-30) / 1.0e-30
 
         return None
@@ -858,7 +858,7 @@ class Model():
                                    z_spectral_densities_0T]
 
         for idx, _ in enumerate(partial_ctor_param_list):
-            if partial_ctor_param_list[idx] == None:
+            if partial_ctor_param_list[idx] is None:
                 partial_ctor_param_list[(idx+2)%4] = None
             else:
                 if ((len(partial_ctor_param_list[idx]) == 0)
@@ -887,7 +887,7 @@ class Model():
     def _check_partial_ctor_param_list(self, partial_ctor_param_list):
         candidate_Ls = set()
         for ctor_param in partial_ctor_param_list:
-            if ctor_param != None:
+            if ctor_param is not None:
                 if len(ctor_param) != 0:
                     candidate_Ls.add(len(ctor_param))
 
@@ -901,13 +901,13 @@ class Model():
 
 
     def _construct_attribute(self, ctor_param, beta=None):
-        if ctor_param == None:
+        if ctor_param is None:
             attribute = None
             return attribute
 
-        expected_type = sbc.scalar.Scalar if beta == None else SpectralDensity0T
+        expected_type = sbc.scalar.Scalar if beta is None else SpectralDensity0T
 
-        attribute = ctor_param[:]
+        attribute = list(ctor_param)
         elem_already_set = [False] * self.L
         for idx1 in range(self.L):
             if elem_already_set[idx1] == False:
@@ -943,7 +943,7 @@ class Model():
         for idx in range(self.L):
             local_model_cmpnt_set = []
             for attribute in attributes:
-                if attribute != None:
+                if attribute is not None:
                     local_model_cmpnt_set += [attribute[idx]]
             local_model_cmpnt_sets[idx] = local_model_cmpnt_set
 
