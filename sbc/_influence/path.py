@@ -87,7 +87,7 @@ class Path():
 
         InfluenceNodeRank3 = sbc._influence.tensorfactory.InfluenceNodeRank3
         InfluenceMPO = sbc._influence.tensorfactory.InfluenceMPO
-        self.influence_node_rank_3_factory = \
+        influence_node_rank_3_factory = \
             InfluenceNodeRank3(total_two_point_influence)
         self.influence_mpo_factory = \
             InfluenceMPO(total_two_point_influence)
@@ -106,7 +106,7 @@ class Path():
         if pkl_parts is None:
             alg = total_two_point_influence.alg
             self.pkl_part = PathPklPart(compress_params, alg)
-            M_r_1_0_I = self.influence_node_rank_3_factory.build(0, 1)
+            M_r_1_0_I = influence_node_rank_3_factory.build(0, 1)
             self.pkl_part.Xi_I_1_1_nodes = []
             self.pkl_part.Xi_I_1_2_nodes = [M_r_1_0_I]
         else:
