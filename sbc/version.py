@@ -61,7 +61,7 @@ short_version = 'v' + version
 
 
 def _get_git_revision():
-    """Get revision hash of ``libtemplate`` from git.
+    """Get revision hash of ``sbc`` from git.
 
     Parameters
     ----------
@@ -69,7 +69,7 @@ def _get_git_revision():
     Returns
     -------
     revision : `str`
-        Git revision hash of ``libtemplate``.
+        Git revision hash of ``sbc``.
     """
     try:
         parsed_cmd = ['git', 'rev-parse', 'HEAD']
@@ -90,7 +90,7 @@ git_revision = _get_git_revision()
 
 
 def _get_full_version():
-    """Get version of ``libtemplate`` from git.
+    """Get version of ``sbc`` from git.
 
     Parameters
     ----------
@@ -98,7 +98,7 @@ def _get_full_version():
     Returns
     -------
     full_version : `str`
-        Full version of ``libtemplate``.
+        Full version of ``sbc``.
     """
     full_version = version
     
@@ -114,7 +114,7 @@ full_version = _get_full_version()
 
 
 def _get_version_summary():
-    """Get version summary of ``libtemplate``.
+    """Get version summary of ``sbc``.
 
     Parameters
     ----------
@@ -122,22 +122,22 @@ def _get_version_summary():
     Returns
     -------
     summary : `str`
-        Version summary of ``libtemplate``.
+        Version summary of ``sbc``.
     """
-    # Check versions of libtemplate.
+    # Check versions of sbc.
     from . import _version
     if _version.version != version:
-        raise ValueError("libtemplate version has changed since "
+        raise ValueError("sbc version has changed since "
                          "installation/compilation")
 
 
 
     # Generate summary.
-    summary = ("libtemplate {libtemplate_ver!s};\n"
+    summary = ("sbc {sbc_ver!s};\n"
                "git revision {git_rev!s} using\n"
                "python {python_ver!s}")
     
-    summary = summary.format(libtemplate_ver=full_version,
+    summary = summary.format(sbc_ver=full_version,
                              git_rev=git_revision,
                              python_ver=sys.version)
     return summary

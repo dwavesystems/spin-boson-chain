@@ -15,7 +15,7 @@ r}(t)\right\rangle`, :math:`\left\langle\hat{\sigma}_{z; r}(t)\right\rangle`,
 density operator, the probability of measuring :math:`\sigma_{z; r}(t)=+1` at
 each site :math:`r`, and the probability of measuring :math:`\sigma_{z;
 r}(t)=-1` at each site :math:`r`. The simulation also checks whether the system
-is entangled using the realignment criterion.
+is entangled using the realignment criterion. 
 
 This script includes the following steps:
 1. Set default backend for the tensornetwork library (used to construct and
@@ -23,7 +23,7 @@ This script includes the following steps:
 2. Construct the spin-boson model.
     a) Define all system model parameters.
     b) Define all bath model components.
-3. Set the truncation parameters for the matrix product states (MPS's) 
+3. Set the compression parameters for the matrix product states (MPS's) 
    representing the system state and the local influence functionals.
 4. Set parameters related to the tensor network algorithm.
 5. Construct a MPS representing the initial state of the spin system.
@@ -89,8 +89,8 @@ from sbc import system
 # For specifying the bath model components.
 from sbc import bath
 
-# For specifying how to truncate Schmidt spectra in MPS compression.
-from sbc import trunc
+# For specifying how to compress MPS's.
+from sbc import compress
 
 # For specifying parameters related to the tensor network algorithm.
 from sbc import alg
@@ -166,7 +166,6 @@ def A_z_0T_cmpnt_func_form(omega, mu, omega_UV):
 
 # In this example we assume spatially non-uniform noise to demonstrate how
 # ``sbc`` can model more complicated systems.
-L = 3  # Number of spins.
 mu_1 = 0.375
 mu_2 = 0.380
 mu_3 = 0.370
@@ -193,7 +192,7 @@ A_z_3_0T_cmpnt = bath.SpectralDensityCmpnt0T(func_form=A_z_0T_cmpnt_func_form,
                                              zero_pt_derivative=mu_3)
 A_z_3_0T = bath.SpectralDensity0T(cmpnts=[A_z_3_0T_cmpnt])
 
-bath_model = bath.Model(L=L,  # Number of spins.
+bath_model = bath.Model(L=system_model.L,  # Number of spins.
                         beta=25,  # Inverse temperature beta=1/(kB*T).
                         memory=2.5,  # The system's memory.
                         z_coupling_energy_scales=[1.0, 1.0, 1.0],
@@ -201,27 +200,29 @@ bath_model = bath.Model(L=L,  # Number of spins.
 
 
 
-# Next, we set the truncation parameters for the matrix product states (MPS's)
-# representing the system state and the local path functionals. In short,
-# increasing and decreasing the parameters `max_num_singular_values` and
-# `max_trunc_err` respectively translate to MPS's with larger bond dimensions
-# `chi` which generally translates to a decrease in numerical errors in the
-# simulation. However, since the most computationally intensive parts of the
-# simulation scale like `chi^3`, increasing and decreasing the parameters
-# `max_num_singular_values` and `max_trunc_err` respectively lead to longer
-# runtimes.
-influence_trunc_params = trunc.Params(max_num_singular_values=64,
-                                      max_trunc_err=1.e-14)
-state_trunc_params = trunc.Params(max_num_singular_values=16,
-                                      max_trunc_err=1.e-14)
+# Next, we set the compression parameters for the matrix product states (MPS's)
+# that span time as well as those that span space. 'Temporal' MPS's are used to
+# represent influence functionals/paths, where 'spatial' MPS's are used to
+# represent the system's state. See the documentation for the class
+# sbc.compress.Params for a description of each available compression parameter.
+temporal_compress_params = compress.Params(method="zip-up",
+                                           max_num_singular_values=32,
+                                           max_trunc_err=1.e-14,
+                                           svd_rel_tol=1.e-12,
+                                           max_num_var_sweeps=2,
+                                           var_rel_tol=1e-8)
+spatial_compress_params = compress.Params(method="direct",
+                                          max_num_singular_values=16,
+                                          max_trunc_err=1.e-14,
+                                          svd_rel_tol=1.e-12)
 
 
 
 # Next, we set the parameters relating to the tensor network algorithm used to
 # simulate the dynamics.
 alg_params = alg.Params(dt=0.1,
-                        influence_trunc_params=influence_trunc_params,
-                        state_trunc_params=state_trunc_params)
+                        temporal_compress_params=temporal_compress_params,
+                        spatial_compress_params=spatial_compress_params)
 
 
 
@@ -240,7 +241,7 @@ tensor = np.zeros([1, 2, 1], dtype=np.complex128)
 tensor[0, 0, 0] = 1 / np.sqrt(2)  # sz=1 amplitude.
 tensor[0, 1, 0] = 1 / np.sqrt(2)  # sz=-1 amplitude.
 node = tn.Node(tensor)
-initial_state_nodes = [node] * L
+initial_state_nodes = [node] * system_model.L
 
 
 
@@ -263,8 +264,7 @@ wish_list = WishList(ev_of_single_site_spin_ops=['sx', 'sz'],
                                                 ('sx', 'sx', 'sx')],
                      spin_config_probs=[[1, 1, 1], [-1, -1, -1]],
                      ev_of_energy=True,
-                     realignment_criterion=True,
-                     state_trace=True)
+                     realignment_criterion=True)
 
 
 
@@ -288,7 +288,7 @@ while t < t_f:
     print("Report at t = {}".format(t))
 
 
-
+    
 # End timer and print total execution time.
 execution_time = time.time() - start_time
 print()

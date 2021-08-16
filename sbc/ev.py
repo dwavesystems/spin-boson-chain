@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 r"""For calculating the expectation values of certain observables.
 
-As discussed in the documentation for the function :func:`sbc.state.trace`, the
-trace of the system's reduced density matrix that is simulated is not 
-necessarily unity. This is due to the fact that the QUAPI algorithm used in the 
-``sbc`` library does not preserve the unitarity of the time evolution of the 
-system state. As a result, all calculations of expectation values in ``sbc``
-are normalized by the trace of the system's reduced density matrix, i.e.
+Due to the way MPS's are normalized upon truncations or applications of MPO's in
+``sbc``, the MPS that encodes the current state of the system might not yield
+a unit trace of the system's reduced density matrix. As a result, all
+calculations of expectation values in ``sbc`` are renormalized by the trace of
+the system's reduced density matrix, i.e.
 
 .. math ::
     \left\langle\hat{O}^{\left(A\right)}\left(t\right)\right\rangle 
@@ -23,6 +22,7 @@ Heisenberg picture defined on the system's Hilbert space,
 operator at time :math:`t`, and 
 :math:`\text{Tr}^{\left(A\right)}\left\{ \cdots\right\}` is the partial trace
 with respect to the system degrees of freedom.
+
 """
 
 
@@ -39,8 +39,7 @@ import tensornetwork as tn
 
 
 
-# For performing system state traces and certain non-trivial tensor network
-# contractions.
+# For performing certain non-trivial tensor network contractions.
 import sbc.state
 
 
@@ -54,7 +53,7 @@ __copyright__ = "Copyright 2021"
 __credits__ = ["Matthew Fitzpatrick"]
 __maintainer__ = "Matthew Fitzpatrick"
 __email__ = "mfitzpatrick@dwavesys.com"
-__status__ = "Non-Production"
+__status__ = "Development"
 
 
 
@@ -111,6 +110,11 @@ def single_site_spin_op(op_string,
         For ``0<=r<len(site_indices)``, ``result[r]`` is the expectaion value
         of the single-site spin operator at site ``site_indices[r]``.
     """
+    # DM: Detailed manuscript.
+
+    # This function essentially implements a special case of Eq. (252) of
+    # DM. For additional context see Sec. 4.10 of DM.
+    
     L = system_state.system_model.L
     is_infinite = system_state.system_model.is_infinite
     
@@ -167,6 +171,11 @@ def multi_site_spin_op(op_strings, system_state):
     result : `complex`
         The expectation value of the multi-site spin operator.
     """
+    # DM: Detailed manuscript.
+
+    # This function implements Eq. (252) of DM. For additional context see
+    # Sec. 4.10 of DM.
+    
     L = system_state.system_model.L
     if system_state.system_model.is_infinite:
         if len(op_strings) % L != 0:
@@ -184,7 +193,7 @@ def multi_site_spin_op(op_strings, system_state):
     kwargs = {"physical_1_legged_nodes": one_legged_nodes,
               "system_state": system_state}
     result = sbc.state._apply_1_legged_nodes_to_system_state_mps(**kwargs)
-    result = complex(result) / sbc.state._trace(system_state)
+    result = complex(result)
 
     return result
 
@@ -245,6 +254,11 @@ def nn_two_site_spin_op(op_string_1,
         For ``0<=r<len(bond_indices)``, ``result[r]`` is the expectaion value
         of the NN two-site spin operator at bond ``bond_indices[r]``.
     """
+    # DM: Detailed manuscript.
+
+    # This function essentially implements a special case of Eq. (252) of
+    # DM. For additional context see Sec. 4.10 of DM.
+    
     L = system_state.system_model.L
     is_infinite = system_state.system_model.is_infinite
     
@@ -302,6 +316,11 @@ def energy(system_state):
         The expectation value of the system's :math:`u=0` unit cell energy.
 
     """
+    # DM: Detailed manuscript.
+
+    # This function implements Eq. (258) of DM, where it makes specific use of
+    # Eq. (252) of DM. For additional context see Sec. 4.10 of DM.
+    
     t = system_state.t
     x_fields = system_state.system_model.x_fields
     z_fields = system_state.system_model.z_fields
@@ -322,6 +341,12 @@ def energy(system_state):
 
 
 def _array_rep_of_op_string(op_string):
+    # DM: Detailed manuscript.
+
+    # This function constructs array representation of Ising spin operators in
+    # the base-4 basis. See Secs. 4.1 and 4.2 for discussions on base-4
+    # variables.
+    
     sigma_x = np.array([[0, 1], [1, 0]], dtype=np.complex128)
     sigma_y = np.array([[0, -1j], [1j, 0]], dtype=np.complex128)
     sigma_z = np.array([[1, 0], [0, -1]], dtype=np.complex128)

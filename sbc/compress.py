@@ -19,7 +19,7 @@ __copyright__ = "Copyright 2021"
 __credits__ = ["Matthew Fitzpatrick"]
 __maintainer__ = "Matthew Fitzpatrick"
 __email__ = "mfitzpatrick@dwavesys.com"
-__status__ = "Non-Production"
+__status__ = "Development"
 
 
 
@@ -82,18 +82,19 @@ class Params():
     Parameters
     ----------
     method : ``"zip-up"`` | ``"direct"``, optional
-        The method used to apply a MPO to a MPS with subsequent compression.
-        If ``method="zip-up"`` (i.e. the default value) then the zip-up method 
-        is used (see e.g. Ref. [Paeckel1]_ for a discussion of the method). If 
-        ``method="direct"`` then the MPO is directly applied to the MPS,
-        followed by a full SVD truncation sweep that goes from right to left, 
-        then left to right. The zip-up method is faster, though it may be 
-        somewhat less accurate. The smaller your timestep, the more accurate the
-        zip-up method will be compared to the direct method. If one subsequently
-        applies one or more variational compression sweeps, then it should not 
-        matter much whether the zip-up or the direct method is used. For finite
-        MPS's, we recommend using the zip-up method, followed by one or more
-        variational sweeps.
+        This parameter only applies to finite MPS's: the MPO application + 
+        compression method is fixed for infinite MPS's. The method used to apply
+        a MPO to a MPS with subsequent compression. If ``method="zip-up"`` (i.e.
+        the default value) then the zip-up method is used (see e.g. 
+        Ref. [Paeckel1]_ for a discussion of the method). If ``method="direct"``
+        then the MPO is directly applied to the MPS, followed by a full SVD 
+        truncation sweep that goes from right to left, then left to right. The 
+        zip-up method is faster, though it may be somewhat less accurate. The 
+        smaller your timestep, the more accurate the zip-up method will be 
+        compared to the direct method. If one subsequently applies one or more 
+        variational compression sweeps, then it should not matter much whether 
+        the zip-up or the direct method is used. For finite MPS's, we recommend 
+        using the zip-up method, followed by one or more variational sweeps.
     max_num_singular_values : `None` | `int`, optional
         The maximum number of singular values to keep in a SVD.
     max_trunc_err : `None` | `float`, optional

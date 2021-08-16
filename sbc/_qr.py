@@ -35,36 +35,58 @@ __status__ = "Non-Production"
 ## Define classes and functions ##
 ##################################
 
-def left_to_right_sweep(nodes, is_infinite, normalize):
+def left_to_right_sweep(nodes, normalize):
+    # [1]: Annals of Physics 326 (2011) 96-192.
+    # nodes represents a MPS or MPO.
+    
+    # This function brings a MPS or MPO [treated as a MPS] to left-canonical
+    # form as described in Sec. 4.4.1 of [1], where we use QR factorization
+    # rather than SVD. In the case of a MPO, the two physical edges are
+    # effectively combined into one during the procedure.
+    
     num_nodes = len(nodes)
     imin = 0
-    imax = imin + (num_nodes - 2 + int(is_infinite))
-
+    imax = imin + (num_nodes - 2)
+    
+    # current_orthogonal_center_idx is the index of the node to which to apply
+    # QR factorization.
     kwargs = {"nodes": nodes, "current_orthogonal_center_idx": imin}
     
     for i in range(imin, imax+1):
         kwargs["current_orthogonal_center_idx"] = i
         shift_orthogonal_center_to_the_right(**kwargs)
 
-    if (not is_infinite) and normalize:
+    # Normalize MPS/MPO such that its corresponding 'norm' equal unity.
+    if normalize:
         nodes[-1] /= tn.norm(nodes[-1])
 
     return None
 
 
 
-def right_to_left_sweep(nodes, is_infinite, normalize):
+def right_to_left_sweep(nodes, normalize):
+    # [1]: Annals of Physics 326 (2011) 96-192.
+    # nodes represents a MPS or MPO.
+    
+    # This function brings a MPS or MPO [treated as a MPS] to right-canonical
+    # form as described in Sec. 4.4.2 of [1], where we use QR factorization
+    # rather than SVD. In the case of a MPO, the two physical edges are
+    # effectively combined into one during the procedure.
+    
     num_nodes = len(nodes)
-    imax = num_nodes - 1 + int(is_infinite)
-    imin = imax - (num_nodes - 1 + int(is_infinite)) + 1
+    imax = num_nodes - 1
+    imin = 1
 
+    # current_orthogonal_center_idx is the index of the node to which to apply
+    # QR factorization.
     kwargs = {"nodes": nodes, "current_orthogonal_center_idx": imax}
     
     for i in range(imax, imin-1, -1):
         kwargs["current_orthogonal_center_idx"] = i
         shift_orthogonal_center_to_the_left(**kwargs)
 
-    if (not is_infinite) and normalize:
+    # Normalize MPS/MPO such that its corresponding 'norm' equal unity.
+    if normalize:
         nodes[0] /= tn.norm(nodes[0])
 
     return None
@@ -72,7 +94,8 @@ def right_to_left_sweep(nodes, is_infinite, normalize):
 
 
 def shift_orthogonal_center_to_the_right(nodes, current_orthogonal_center_idx):
-    # Function does not check correctness of 'current_orthogonal_center_idx'.
+    # See comments in function left_to_right_sweep for more info/context.
+    
     i = current_orthogonal_center_idx
 
     num_nodes = len(nodes)
@@ -98,7 +121,11 @@ def shift_orthogonal_center_to_the_right(nodes, current_orthogonal_center_idx):
 
 
 def shift_orthogonal_center_to_the_left(nodes, current_orthogonal_center_idx):
-    # Function does not check correctness of 'current_orthogonal_center_idx'.
+    # [1]: Annals of Physics 326 (2011) 96-192.
+    # See comments in function right_to_left_sweep for more info/context. See
+    # also paragraph above Eq. (49) of [1] for a discussion on performing
+    # QR factorizations/sweeps from right to left.
+    
     i = current_orthogonal_center_idx
     
     num_nodes = len(nodes)
@@ -129,8 +156,11 @@ def shift_orthogonal_center_to_the_left(nodes, current_orthogonal_center_idx):
 
 
 def split_node(node, left_edges, right_edges):
-    # Switch to numpy backend (if numpy is not being used) so that SVD can be
-    # performed on CPUs as it is currently faster than on GPUs.
+    # Perform QR factorization on node.
+    
+    # Switch to numpy backend (if numpy is not being used) so that QR
+    # factorization can be performed on CPUs as it is currently faster than on
+    # GPUs.
     original_backend_name = node.backend.name
     if original_backend_name != "numpy":
         sbc._backend.tf_to_np(node)

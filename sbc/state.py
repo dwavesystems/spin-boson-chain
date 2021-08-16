@@ -139,9 +139,6 @@ import pickle
 # To get the current working directory.
 import os
 
-# For deep copies of objects.
-import copy
-
 
 
 # For creating arrays to be used to construct tensor nodes and networks.
@@ -184,7 +181,7 @@ __copyright__ = "Copyright 2021"
 __credits__ = ["Matthew Fitzpatrick"]
 __maintainer__ = "Matthew Fitzpatrick"
 __email__ = "mfitzpatrick@dwavesys.com"
-__status__ = "Non-Production"
+__status__ = "Development"
 
 
 
@@ -194,7 +191,7 @@ __status__ = "Non-Production"
 
 # List of public objects in objects.
 __all__ = ["SystemState",
-           "schmidt_spectrum_sum",
+           "schmidt_spectra",
            "realignment_criterion",
            "spin_config_prob"]
 
@@ -206,6 +203,13 @@ class _SystemStatePklPart():
                  bath_model,
                  alg_params,
                  initial_state_nodes):
+        # DM: Detailed manuscript.
+
+        # 'Pickle parts' can be saved to file in case of a crash and then
+        # subsequently recovered in a future run. See docs of method
+        # sbc.state.recover_and_resume for background information on pickles and
+        # simulation recovery.
+        
         if system_model.L != bath_model.L:
             raise ValueError(_system_state_init_err_msg_1)
 
@@ -222,11 +226,15 @@ class _SystemStatePklPart():
         self.t = 0
         self.influence_nodes_idx = 0
         self.alg_params = alg_params
-        self.forced_gc = True
+        self.forced_gc = True  # Enfore garbage collection in some places.
+
+        # See docs for the method sbc.state.SystemState.recover_and_resume for
+        # context.
         self.num_k_steps_per_dump = np.inf
         self.just_recovered = False
         self.sub_pkl_part_sets = dict()
 
+        # Construct the initial MPS representing the reduced density matrix.
         self.set_nodes_from_initial_state_nodes(initial_state_nodes)
         self.Xi_rho_vdash = self.nodes
 
@@ -235,18 +243,21 @@ class _SystemStatePklPart():
 
         # For caching purposes.
         self.Xi_rho = None
-        self.trace = None
         self.transfer_matrix = None
         self.dominant_eigval = None
         self.dominant_left_eigvec_node = None
         self.dominant_right_eigvec_node = None
-        self.correlation_length = None
+        self.correlation_lengths = None
+        self.schmidt_spectra = None
 
         return None
 
 
 
     def set_nodes_from_initial_state_nodes(self, initial_state_nodes):
+        # DM: Detailed manuscript.
+        # [1]: Annals of Physics 326 (2011) 96-192.
+        
         num_nodes = len(initial_state_nodes)
         L = self.L
         
@@ -266,8 +277,12 @@ class _SystemStatePklPart():
                 raise ValueError(msg)
             
             if node.shape[1] == 4:
+                # A MPS representing a reduced density matrix was given.
                 new_node = node.copy()
             elif node.shape[1] == 2:
+                # A MPS representing a pure state vector was given: we need to
+                # convert this to a MPS representing a density matrix following
+                # Sec. 4.6 of DM.
                 new_node = tn.outer_product(node.copy(), tn.conj(node))
                 tn.flatten_edges([new_node[0], new_node[3]])
                 tn.flatten_edges([new_node[0], new_node[2]])
@@ -275,11 +290,18 @@ class _SystemStatePklPart():
                 
             rho_nodes.append(new_node)
 
-        if not self.is_infinite:
-            kwargs = {"nodes": rho_nodes,
-                      "is_infinite": self.is_infinite,
-                      "normalize": True}
-            self.schmidt_spectra = sbc._qr.left_to_right_sweep(**kwargs)
+        # Transform the MPS rho_nodes into canonical form. See Secs. 4.1.3 and
+        # 10.5 of [1] for discussions on canonical forms.
+        if self.is_infinite:
+            # See comments in function sbc._svd.Lambda_Theta_form for a
+            # description of the Lambda_Theta object.
+            Lambda_Theta = sbc._svd.Lambda_Theta_form(rho_nodes)
+            kwargs = {"Lambda_Theta": Lambda_Theta, "compress_params": None}
+            sbc._mpomps.canonicalize_and_compress_infinite_mps(**kwargs)
+        else:
+            kwargs = {"nodes": rho_nodes, "normalize": True}
+            sbc._qr.left_to_right_sweep(**kwargs)
+
         self.nodes = rho_nodes
 
         return None
@@ -287,12 +309,20 @@ class _SystemStatePklPart():
 
 
     def update_sub_pkl_part_sets(self, unique_influence_paths):
+        # 'Pickle parts' can be saved to file in case of a crash and then
+        # subsequently recovered in a future run. Multiple objects/classes in
+        # sbc have pickle parts and need to be periodically updated if
+        # simulation backups are desired. See docs of method
+        # sbc.state.recover_and_resume for background information on pickles and
+        # simulation recovery.
+        
         self.sub_pkl_part_sets = dict()
         for r, influence_path in unique_influence_paths.items():
-            influence_node_rank_3_factory = \
-                influence_path.influence_node_rank_3_factory
+            influence_mpo_factory = influence_path.influence_mpo_factory
+            influence_node_rank_4_factory = \
+                influence_mpo_factory.influence_node_rank_4_factory
             total_twopt_influence = \
-                influence_node_rank_3_factory.total_two_pt_influence
+                influence_node_rank_4_factory.total_two_pt_influence
             
             influence_path_pkl_part = influence_path.pkl_part
 
@@ -396,20 +426,54 @@ class SystemState():
     nodes : `array_like` (:class:`tensornetwork.Node`, shape=(``L``,))
         The nodes making up the MPS that represents the current state of the 
         :math:`u=0` unit cell of the system (i.e. the state at time ``t=n*dt``).
-    correlation_length : `None` | `float`, read-only
-        Set to `None` for finite chains, otherwise ``correlation_length`` is the
-        correlation length of the system.
+        Due to the way MPS's are normalized upon truncations or applications of
+        MPO's in ``sbc``, the aforementioned MPS that represents the current
+        state of the :math:`u=0` unit cell of the system might not yield a unit
+        trace of the system's reduced density matrix. 
+    correlation_lengths : `None` | `array_like` (`float`, shape=(``chi_s``,)), read-only
+        Let us consider the following coarse-grained two-point correlation
+        function:
+
+        .. math ::
+            G_{u_i, u_f}\left(t_n\right) = \left\langle 
+            \hat{O}_{u_i}^{\left(1\right)} 
+            \hat{O}_{u_f}^{\left(2\right)} \right\rangle_{t_n},
+            :label: state_SystemState_two_point_correlator_1
+
+        where :math:`\hat{O}_{u_i}^{\left(1\right)}` and
+        :math:`\hat{O}_{u_f}^{\left(2\right)}` are multi-site operators that 
+        operate on the unit cells :math:`u=u_i` and :math:`u=u_f` respectively.
+        For infinite systems, :math:`G_{u_i, u_f}\left(t_n\right)` can be 
+        written as:
+
+        .. math ::
+            G_{u_i, u_f}\left(t_n\right) = c_0 + \sum_{l=1}^{\chi_s-1} 
+            c_l e^{-\frac{L}{\xi_l}\left\{u_f-u_i-1\right\}},
+            :label: state_SystemState_two_point_correlator_2
+
+        where :math:`\chi_s` is the bond dimension of the MPS representing the
+        system's reduced density matrix, the :math:`c_l` are complex numbers of
+        little importance here, and the :math:`\xi_l` are the correlation 
+        lengths associated with :math:`G_{u_i, u_f}\left(t_n\right)`, which are 
+        ordered from largest to smallest. For finite systems, 
+        ``correlation_lengths`` is set to `None`, otherwise 
+        ``correlation_lengths[i]`` is :math:`\xi_{i+1}`.
     """
     def __init__(self,
                  system_model,
                  bath_model,
                  alg_params,
-                 initial_state_nodes):        
+                 initial_state_nodes):
+        # DM: Detailed manuscript.
+
         self.system_model = system_model
         self.bath_model = bath_model
         self.alg_params = alg_params
 
         dt = alg_params.dt
+
+        # These 'factory' classes build instances of the nodes given by
+        # Eqs. (187) and (188) of DM. See Sec. 4.7 of DM for further context.
         tensorfactory = sbc._phasefactor.tensorfactory
         self._z_field_phase_factor_node_rank_2_factory = \
             tensorfactory.ZFieldPhaseFactorNodeRank2(system_model, dt)
@@ -417,8 +481,14 @@ class SystemState():
             tensorfactory.ZZCouplerPhaseFactorNodeRank2(system_model, dt)
 
         self.t = 0
+
+        # K_tau is given by Eq. (87) of DM.
         tau = bath_model.memory
         K_tau = max(0, math.ceil((tau - 7.0*dt/4.0) / dt)) + 3
+
+        # The 'first iteration procedure' involves executing Eqs. (218)-(220) of
+        # DM, whereas the 'second iteration procedure' involves executing
+        # Eqs. (221)-(224) of DM.
         self._max_k_in_first_iteration_procedure = lambda n: (n-K_tau)-1
         self._max_k_in_second_iteration_procedure = lambda n: n
 
@@ -427,28 +497,40 @@ class SystemState():
         if initial_state_nodes is None:
             self._pkl_part = None
             self.nodes = None
-            self.correlation_length = None
+            self.correlation_lengths = None
             return None
-        
+
+        # 'Pickle parts' can be saved to file in case of a crash and then
+        # subsequently recovered in a future run. See docs of method
+        # sbc.state.recover_and_resume for background information on pickles and
+        # simulation recovery.
         self._pkl_part = _SystemStatePklPart(system_model,
                                              bath_model,
                                              alg_params,
                                              initial_state_nodes)
-        
+
+        # Influence paths are given by Eq. (103) of DM. 
         self._initialize_influence_paths()
         self._pkl_part.update_sub_pkl_part_sets(self._unique_influence_paths)
-        
+
+        # The transfer matrix refers to the quantity given by Eq. (226) of DM
+        # for u=0.
+        self._update_transfer_matrix()
         if self.system_model.is_infinite:
             self._update_infinite_chain_alg_attrs()
 
         self.nodes = self._pkl_part.nodes
-        self.correlation_length = self._pkl_part.correlation_length
+        self.correlation_lengths = self._pkl_part.correlation_lengths
 
         return None
 
 
 
     def _initialize_influence_paths(self):
+        # DM: Detailed manuscript.
+        # Influence paths are given by Eq. (103) of DM. Here we are initializing
+        # the objects that represent them.
+        
         pkl_part = self._pkl_part
         
         site_indices_of_unique_influence_paths = \
@@ -527,16 +609,23 @@ class SystemState():
         Returns
         -------
         """
+        # DM: Detailed manuscript.
+        
         self._reset_evolve_procedure(num_steps, forced_gc, num_k_steps_per_dump)
+
+        # Instances of k-steps are given by Eqs. (219), (220), (221), (223), and
+        # (224) of DM.
         self._k_steps(pkl_filename, forced_gc)
         
+        # The transfer matrix refers to the quantity given by Eq. (226) of DM
+        # for u=0.
+        self._update_transfer_matrix()
         if self.system_model.is_infinite:
             self._update_infinite_chain_alg_attrs()
-        self._pkl_part.trace = None  # Needs to be recalculated.
 
         self.t = self._pkl_part.t
         self.nodes = self._pkl_part.nodes
-        self.correlation_length = self._pkl_part.correlation_length
+        self.correlation_lengths = self._pkl_part.correlation_lengths
 
         return None
 
@@ -554,13 +643,18 @@ class SystemState():
         if num_k_steps_per_dump < 1:
             raise ValueError(_system_state_reset_evolve_procedure_err_msg_2)
 
-        self._pkl_part.schmidt_spectra = None
-        self._pkl_part.forced_gc = forced_gc
+        self._pkl_part.schmidt_spectra = None  # Needs to be recalculated.
+        self._pkl_part.forced_gc = forced_gc  # Enforce garbage collection?
         self._pkl_part.num_k_steps_per_dump = num_k_steps_per_dump
 
+        # The 'first iteration procedure' involves executing Eqs. (218)-(220) of
+        # DM, whereas the 'second iteration procedure' involves executing
+        # Eqs. (221)-(224) of DM.
         n = self._pkl_part.n
         k = max(-1, self._max_k_in_first_iteration_procedure(n)+1)
 
+        # Calculate the required set of influence nodes to perform the first
+        # k-step of the current evolution step.
         for r, influence_path in self._unique_influence_paths.items():
             influence_path.reset_evolve_procedure(num_n_steps=num_steps,
                                                   k=k,
@@ -573,6 +667,9 @@ class SystemState():
 
         k_limit = self._max_k_in_first_iteration_procedure(self._pkl_part.n)
         if k > k_limit:
+            # Xi_rho_vdash and Xi_rho are introduced in Eqs. (215) and (216)
+            # of DM respectively. The following is essentially implementing
+            # Eq. (222) of DM.
             self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
 
         return None
@@ -580,8 +677,17 @@ class SystemState():
 
 
     def _k_steps(self, pkl_filename, forced_gc):
+        # DM: Detailed manuscript.
+        
+        # Instances of k-steps are given by Eqs. (219), (220), (221), (223), and
+        # (224) of DM.
+        
         k_step_count = 0
         n = self._pkl_part.n
+
+        # The 'first iteration procedure' involves executing Eqs. (218)-(220) of
+        # DM, whereas the 'second iteration procedure' involves executing
+        # Eqs. (221)-(224) of DM.
         k_limit_1 = self._max_k_in_first_iteration_procedure(n)
         k_limit_2 = self._max_k_in_second_iteration_procedure(n)
 
@@ -589,23 +695,30 @@ class SystemState():
             if not self._pkl_part.just_recovered:
                 self._k_step()
                 if self._pkl_part.forced_gc:
-                    gc.collect()
+                    gc.collect()  # Enforce garbage collection.
                 k_step_count += 1
                 if k_step_count == self._pkl_part.num_k_steps_per_dump:
-                    self.partial_dump(pkl_filename)
+                    self.partial_dump(pkl_filename)  # Create simulation backup.
                     if self._pkl_part.forced_gc:
-                        gc.collect()
+                        gc.collect()  # Enforce garbage collection.
                     k_step_count = 0
             self._pkl_part.just_recovered = False
             if self._pkl_part.k == k_limit_1+1:
+                # The following is essentially implementing Eq. (222) of DM.
                 self._pkl_part.Xi_rho = self._pkl_part.Xi_rho_vdash[:]
             for r, influence_path in self._unique_influence_paths.items():
+                # This 'second iteration procedure' refers to that used to
+                # calculate the influence paths and is different from that
+                # discussed above. This second iteration procedure involves
+                # executing Eqs. (146)-(154) of DM.
                 m2_limit = \
                     influence_path.max_m2_in_second_iteration_procedure(n)
                 if influence_path.pkl_part.m2 <= m2_limit:
+                    # Calculate the required set of influence nodes to perform
+                    # the next k-step of the current evolution step.
                     influence_path.k_step(forced_gc)
                     if self._pkl_part.forced_gc:
-                        gc.collect()
+                        gc.collect()  # Enforce garbage collection.
         
         self._pkl_part.nodes = self._pkl_part.Xi_rho
 
@@ -614,26 +727,40 @@ class SystemState():
 
 
     def _k_step(self):
+        # DM: Detailed manuscript.
+        
         k = self._pkl_part.k
         n = self._pkl_part.n
         is_infinite = self.system_model.is_infinite
 
         if k <= self._max_k_in_first_iteration_procedure(n):
+            # The following line is essentially implementing Eq. (222) of DM.
             rho_nodes = self._pkl_part.Xi_rho_vdash
         else:
             rho_nodes = self._pkl_part.Xi_rho
 
+        # mpo_nodes represents one of Eqs. (201), (204), (207), (210), or (213)
+        # of DM depending on the scenario. See Secs. 4.7 and 4.8 of DM for
+        # additional context.
         mpo_nodes = \
             self._build_mpo_encoding_effects_of_bath_fields_and_couplers()
         spatial_compress_params = self.alg_params.spatial_compress_params
 
+        # This code block implements one of Eqs. (219), (220), (221), (223), or
+        # (224) of DM, depending on the scenario. See Sec. 4.8 of DM for
+        # additional context.
         kwargs = {"mpo_nodes": mpo_nodes,
                   "mps_nodes": rho_nodes,
                   "compress_params": spatial_compress_params,
                   "is_infinite": is_infinite}
         sbc._mpomps.apply_mpo_to_mps_and_compress(**kwargs)
 
+        # The 'first iteration procedure' involves executing Eqs. (218)-(220) of
+        # DM, whereas the 'second iteration procedure' involves executing
+        # Eqs. (221)-(224) of DM.
         if k > self._max_k_in_first_iteration_procedure(n):
+            # influence_nodes_idx is ultimately used in the _get_influence_nodes
+            # method define further below.
             self._pkl_part.influence_nodes_idx += \
                 1 if (k == -1) or (self._pkl_part.alg == "z-noise") else 3
 
@@ -641,6 +768,7 @@ class SystemState():
             self._pkl_part.Xi_rho_vdash = rho_nodes
             beg = 1 if (k == -1) or (self._pkl_part.alg == "z-noise") else 3
             for r, influence_path in self._unique_influence_paths.items():
+                # Drop influence nodes that are not needed anymore.
                 influence_path.pkl_part.Xi_I_1_1_nodes = \
                     influence_path.pkl_part.Xi_I_1_1_nodes[beg:]
         else:
@@ -653,6 +781,12 @@ class SystemState():
 
 
     def _build_mpo_encoding_effects_of_bath_fields_and_couplers(self):
+        # DM: Detailed manuscript.
+        
+        # This method constructs one of the MPO's given by Eqs. (201), (204),
+        # (207), (210), or (213) of DM depending on the scenario. See Secs. 4.7
+        # and 4.8 of DM for additional context.
+        
         L = self.system_model.L
 
         mpo_nodes = []
@@ -676,6 +810,15 @@ class SystemState():
 
 
     def _build_nodes_encoding_effects_of_bath_and_x_and_z_fields(self):
+        # DM: Detailed manuscript.
+        
+        # This method is used in constructing one of the MPO's given by
+        # Eqs. (201), (204), (207), (210), or (213) of DM depending on the
+        # scenario. Each MPO node is factorized into multiple parts, where each
+        # part encodes different information. This method constructs the parts
+        # of each MPO node that encode the bath, and the x- and z-field
+        # information. See Secs. 4.7 and 4.8 of DM for additional context.
+        
         k = self._pkl_part.k
         n = self._pkl_part.n
         L = self.system_model.L
@@ -716,6 +859,11 @@ class SystemState():
 
 
     def _build_and_split_zz_coupler_phase_factor_nodes(self):
+        # DM: Detailed manuscript.
+        
+        # In this method we split the nodes given by Eq. (187) of DM according
+        # to Eqs. (189)-(195) of DM.
+        
         k = self._pkl_part.k
         n = self._pkl_part.n
         L = self.system_model.L
@@ -737,6 +885,15 @@ class SystemState():
 
 
     def _build_split_and_restructure_zz_coupler_phase_factor_nodes(self):
+        # DM: Detailed manuscript.
+        
+        # This method is used in constructing one of the MPO's given by
+        # Eqs. (201), (204), (207), (210), or (213) of DM depending on the
+        # scenario. Each MPO node is factorized into multiple parts, where each
+        # part encodes different information. This method constructs the parts
+        # of each MPO node that encode the zz-coupler information. See Secs. 4.7
+        # and 4.8 of DM for additional context.
+        
         L = self.system_model.L
 
         split_zz_coupler_phase_factor_nodes = \
@@ -784,6 +941,14 @@ class SystemState():
 
 
     def _get_influence_nodes(self, r, k, n):
+        # DM: Detailed manuscript.
+
+        # This method retrieves the influence nodes required to execute the next
+        # k-step. Instances of k-steps are given by Eqs. (219), (220), (221),
+        # (223), and (224) of DM. See Sec. 4.4 for a discussion about the
+        # influence nodes [i.e. the nodes of the MPS's representing the
+        # influence paths].
+        
         alg = self._pkl_part.alg
         beg = self._pkl_part.influence_nodes_idx
         end = beg+1 if (k == -1) or (alg == "z-noise") else beg+3
@@ -801,37 +966,56 @@ class SystemState():
 
 
     def _update_infinite_chain_alg_attrs(self):
-        self._update_transfer_matrix()
+        # DM: Detailed manuscript.
+
+        # The transfer matrix refers to the quantity given by Eq. (226) of DM
+        # for u=0.
         w, vl, vr = scipy.linalg.eig(self._pkl_part.transfer_matrix, left=True)
 
+        # dominant_eigval refers to the quantity x_n_N_0 that is introduced
+        # in Eqs. (230) and (231).
         dominant_eigval_idx = np.argmax(np.abs(w))
         self._pkl_part.dominant_eigval = w[dominant_eigval_idx]
-        
+
+        # dominant_left_eigvec_node refers to the rightmost quantity that
+        # appears on the right hand side of Eq. (230) of DM.
+        # dominant_right_eigvec_node refers to the rightmost quantity that
+        # appears on the right hand side of Eq. (231) of DM. Note that these
+        # quantities are normalized such that they satisfy Eq. (239) of DM.
         left_eigvec = vl[:, dominant_eigval_idx]
         right_eigvec = vr[:, dominant_eigval_idx]
         norm_const = np.sqrt(np.vdot(left_eigvec, right_eigvec)+0j)
-        
         self._pkl_part.dominant_left_eigvec_node = \
             tn.Node(np.conj(left_eigvec) / norm_const)
         self._pkl_part.dominant_right_eigvec_node = \
             tn.Node(right_eigvec / norm_const)
 
+        # Calculate correlation lengths according to Eq. (270) of DM.
         L = self._pkl_part.L
         if len(w) > 1:
+            subdominant_eigvals = np.delete(w, dominant_eigval_idx)
             dominant_eigval = self._pkl_part.dominant_eigval
-            self._pkl_part.correlation_length = \
-                -L / np.log(np.sort(np.abs(w / dominant_eigval))[-2])
+            abs_eigval_ratios = np.abs(subdominant_eigvals / dominant_eigval)
+            log_abs_eigval_ratios = np.log(abs_eigval_ratios)
+            self._pkl_part.correlation_lengths = \
+                np.sort(-L / log_abs_eigval_ratios)[::-1]
         else:
-            self._pkl_part.correlation_length = 0
+            self._pkl_part.correlation_lengths = []
 
         return None
 
 
 
     def _update_transfer_matrix(self):
+        # DM: Detailed manuscript.
+
+        # The transfer matrix refers to the quantity given by Eq. (226) of DM
+        # for u=0.
+        
         L = self._pkl_part.L
         nodes = self._pkl_part.nodes
-        
+
+        # Evaluate j=0,3 for each physical leg Xi_rho_A in Eq. (226) of DM.
         tensor = np.array([1, 0, 0, 1], dtype=np.complex128)
         physical_1_legged_node = tn.Node(tensor)
 
@@ -950,6 +1134,8 @@ class SystemState():
         system_state : :class:`sbc.state.SystemState`
             The recovered system state.
         """
+        # DM: Detailed manuscript.
+                
         with open(pkl_filename, 'rb') as file_obj:
             pkl_part = pickle.load(file_obj)
         pkl_part.just_recovered = True
@@ -968,16 +1154,20 @@ class SystemState():
         system_state._initialize_influence_paths()
         _check_recovered_pkl_part(system_state)
 
+        # Resume evolution procedure if incomplete. Instances of k-steps are
+        # given by Eqs. (219), (220), (221), (223), and (224) of DM.
         system_state._k_steps(pkl_filename, forced_gc)
 
+        # The transfer matrix refers to the quantity given by Eq. (226) of DM
+        # for u=0.
+        system_state._update_transfer_matrix()
         if system_state.system_model.is_infinite:
             system_state._update_infinite_chain_alg_attrs()
-        system_state._pkl_part.trace = None  # Needs to be recalculated.
 
         system_state.t = system_state._pkl_part.t
         system_state.nodes = system_state._pkl_part.nodes
-        system_state.correlation_length = \
-            system_state._pkl_part.correlation_length
+        system_state.correlation_lengths = \
+            system_state._pkl_part.correlation_lengths
 
         return system_state
 
@@ -1005,9 +1195,22 @@ def _check_recovered_pkl_part(system_state):
 
 def _apply_1_legged_nodes_to_system_state_mps(physical_1_legged_nodes,
                                               system_state):
-    r"""Used in some of the public functions in this module and elsewhere."""
+    # DM: Detailed manuscript.
+    
+    # 'Physical 1-legged' nodes are rank-1 nodes that can be contracted with
+    # the 'physical' edges of the MPS representing the system's reduced density
+    # matrix, i.e. the 'vertical' edges. Essentially, this function evaluates
+    # Eq. (252) of DM, where the physical edges are determined by the
+    # single-site operators O_{r+uL} to be specified, which are generically
+    # defined by Eq. (249) of DM.
+    
     L = system_state.system_model.L
 
+    # left_1_legged_node refers to the quantity on the second line of Eq. (252);
+    # right_1_legged_node refers to the quantity on the fourth line of
+    # Eq. (252); num_unit_cells_required is equal to (uf-ui+1), which appears in
+    # Eq. (252); and scale_factor refers to the denominator on the first line of
+    # Eq. (252). See Sec. 4.10 of DM for additional context.
     if system_state.system_model.is_infinite:
         left_1_legged_node = system_state._pkl_part.dominant_left_eigvec_node
         right_1_legged_node = system_state._pkl_part.dominant_right_eigvec_node
@@ -1017,7 +1220,7 @@ def _apply_1_legged_nodes_to_system_state_mps(physical_1_legged_nodes,
     else:
         left_1_legged_node = tn.Node(np.array([1], dtype=np.complex128))
         right_1_legged_node = tn.Node(np.array([1], dtype=np.complex128))
-        scale_factor = 1
+        scale_factor = system_state._pkl_part.transfer_matrix[0][0]
     
     result = left_1_legged_node
 
@@ -1038,47 +1241,21 @@ def _apply_1_legged_nodes_to_system_state_mps(physical_1_legged_nodes,
 
 
 
-def _trace(system_state):
-    # If trace was already calculated after evolving state.
-    if system_state._pkl_part.trace is not None:
-        return system_state._pkl_part.trace
-
-    L = system_state.system_model.L
-
-    tensor = np.array([1, 0, 0, 1], dtype=np.complex128)
-    physical_1_legged_node = tn.Node(tensor)
-    physical_1_legged_nodes = [physical_1_legged_node] * L
-
-    result = \
-        _apply_1_legged_nodes_to_system_state_mps(physical_1_legged_nodes,
-                                                  system_state)
-    result = float(np.real(result))
-
-    # Cache result for future use.
-    system_state._pkl_part.trace = result
-
-    return result
-
-
-
-def schmidt_spectrum_sum(system_state, bond_indices=None):
-    r"""Calculate the Schmidt spectrum sum for a given set of bonds.
-
-    Note that this function can only calculate the Schmidt spectrum sum for
-    **finite** chains.
+def schmidt_spectra(system_state):
+    r"""Calculate the Schmidt spectra for a given set of bonds.
 
     Suppose we bipartition the system at the :math:`r^{\mathrm{th}}` bond of
-    a finite chain. For this bipartition, the system's reduced density matrix 
+    a given chain. For this bipartition, the system's reduced density matrix 
     :math:`\hat{\rho}^{(A)}` can be expressed in the so-called operator Schmidt 
     decomposition:
 
     .. math ::
-        \hat{\rho}^{(A)} = \sum_{c} S_{r, c} 
+        \hat{\rho}^{(A)} = \sum_{c} \tilde{S}_{r, c} 
         \hat{\rho}_{r, c}^{\left(A, \vdash\right)} \otimes
         \hat{\rho}_{r, c}^{\left(A, \dashv\right)},
-        :label: state_schmidt_spectrum_sum_schmidt_decomposition
+        :label: state_schmidt_spectra_schmidt_decomposition
 
-    where :math:`S_{r, c}` is the Schmidt spectrum for the
+    where :math:`\tilde{S}_{r, c}` is the Schmidt spectrum for the
     :math:`r^{\mathrm{th}}` bond, and the sets 
     :math:`\hat{\rho}_{r, c}^{\left(A, \vdash\right)}` and
     :math:`\hat{\rho}_{r, c}^{\left(A, \dashv\right)}` form orthonormal bases of
@@ -1090,70 +1267,79 @@ def schmidt_spectrum_sum(system_state, bond_indices=None):
         \left(\hat{\rho}_{r, c_1}^{\left(A, \vdash\right)}
         \right)^{\dagger} \hat{\rho}_{r, c_2}^{\left(A, \vdash\right)}
         \right\} = \delta_{c_1, c_2},
-        :label: state_schmidt_spectrum_sum_orthonormal_bases_1
+        :label: state_schmidt_spectra_orthonormal_bases_1
 
     .. math ::
         \mathrm{Tr}\left\{
         \left(\hat{\rho}_{r, c_1}^{\left(A, \dashv\right)}
         \right)^{\dagger} \hat{\rho}_{r, c_2}^{\left(A, \dashv\right)}
         \right\} = \delta_{c_1, c_2},
-        :label: state_schmidt_spectrum_sum_orthonormal_bases_2
+        :label: state_schmidt_spectra_orthonormal_bases_2
 
-    The Schmidt spectrum sum for the :math:`r^{\mathrm{th}}` bond is
-    :math:`\sum_{c} S_{r, c}`. 
-    
-    :func:`sbc.state.schmidt_spectrum_sum` calculates the Schmidt spectrum
-    sum for a given set of bonds at the current moment in time :math:`t`. The
-    current time is stored in the :obj:`sbc.state.SystemState` object
-    ``system_state``.
+    Due to the way MPS's are normalized upon truncations or applications of 
+    MPO's in ``sbc``, the MPS that represents the current state of the 
+    :math:`u=0` unit cell of the system might not yield a unit trace of the 
+    system's reduced density matrix. In order to make comparisons between
+    different systems, the Schmidt spectra of a given system should be 
+    renormalized by the trace of the system's reduced density matrix:
+
+    .. math ::
+        S_{r, c} 
+        = \frac{\tilde{S}_{r, c} }
+        {\text{Tr}^{\left(A\right)}
+        \left\{\hat{\rho}^{\left(A\right)}\left(t\right)\right\}}.
+        :label: state_schmidt_spectra_renormalized_schmidt_spectra
+
+    :func:`sbc.state.schmidt_spectra` calculates the renormalized Schmidt
+    spectrum for each bond at the current moment in time :math:`t`. The current
+    time is stored in the :obj:`sbc.state.SystemState` object
+    ``system_state``. This function can only be applied to finite systems since
+    for infinite systems we cannot determine the trace of the system's reduced
+    density matrix.
 
     Parameters
     ----------
     system_state : :class:`sbc.state.SystemState`
-        The system state, where the system must be a **finite** chain.
-    bond_indices : `None` | `array_like` (`int`, ndim=1), optional
-        The bond indices corresponding to the bonds for which to calculate the
-        Schmidt spectrum sum. If set to `None`, then ``bond_indices`` is reset 
-        to ``range(system_state.system_model.L-1)``, i.e. the Schmidt spectrum 
-        sum is calculated for all bonds.
+        The system state. The system must be a finite chain.
 
     Returns
     -------
-    result : `array_like` (`float`, shape=(``len(bond_indices)``,))
-        For ``0<=r<len(bond_indices)``, ``result[r]`` is the Schmidt spectrum
-        sum for the bond ``bond_indices[r]``.
+    result : `array_like` (`float`, ndim=2)
+        ``result[r]`` is the Schmidt spectrum for the ``r`` th bond, rescaled by
+        the trace of the system's reduced density matrix.
     """
+    # DM: Detailed manuscript.
+    # [1]: Annals of Physics 326 (2011) 96-192.
+
+    # This function is only supported for finite chains.
     if system_state.system_model.is_infinite:
-        raise ValueError(_schmidt_spectrum_sum_err_msg_1a)
-    
-    L = system_state.system_model.L
-    if bond_indices == None:
-        bond_indices = range(L-1)
+        raise ValueError(_schmidt_spectra_msg_1)
 
-    result = []
+    # If the Schmidt spectra has not already been calculated and cached for the
+    # current time step, we must calculate it here.
+    if system_state._pkl_part.schmidt_spectra is None:
+        # See Sec. 4.1.3 of [1] for a discussion on how to obtain the
+        # Schmidt spectra using SVD. Note that the first sweep does no
+        # compression, hence why we can use the faster QR approach.
+        sbc._qr.right_to_left_sweep(nodes=system_state.nodes,
+                                    normalize=False)
+        S_nodes = sbc._svd.left_to_right_sweep(nodes=system_state.nodes,
+                                               compress_params=None,
+                                               normalize=False)
 
-    try:
-        if system_state._pkl_part.schmidt_spectra is None:
-            kwargs = {"nodes": system_state.nodes,
-                      "compress_params": None,
-                      "is_infinite": system_state._pkl_part.is_infinite,
-                      "normalize": False}
-            sbc._svd.right_to_left_sweep(**kwargs)
-            schmidt_spectra = sbc._svd.left_to_right_sweep(**kwargs)
-            system_state._pkl_part.schmidt_spectra = schmidt_spectra  # Cache.
-        else:
-            schmidt_spectra = system_state._pkl_part.schmidt_spectra
+        # Note that according to Eqs. (227), (230), (231), and (234), the
+        # transfer matrix is equivalent to the trace of the system's reduced
+        # density matrix for finite chains [the transfer matrix is simply a
+        # scalar in this case].
+        state_trace = np.abs(system_state._pkl_part.transfer_matrix[0][0])
+
+        result = [S_node / state_trace for S_node in S_nodes]
+            
+        system_state._pkl_part.schmidt_spectra = result  # Cache.
         
-        for bond_idx in bond_indices:
-            S_node = schmidt_spectra[bond_idx]
-            edge = S_node[0] ^ S_node[1]
-            S_node_after_taking_trace = tn.contract(edge)
-            S_sum = float(np.real(S_node_after_taking_trace.tensor))
-            result.append(S_sum)
-
-    except IndexError:
-        raise IndexError(_schmidt_spectrum_sum_err_msg_1b)
-
+    else:
+        result = system_state._pkl_part.schmidt_spectra
+        
     return result
 
 
@@ -1161,40 +1347,60 @@ def schmidt_spectrum_sum(system_state, bond_indices=None):
 def realignment_criterion(system_state):
     r"""Determine whether the system is entangled via the realignment criterion.
 
-    Note that this function can only determine whether or not **finite** chains
-    are entangled.
+    Let :math:`S_{r, c}` be the Schmidt spectrum for the :math:`r^{\mathrm{th}}`
+    bond rescaled by the trace of the system's reduced density matrix [see
+    documentation for the function :func:`sbc.state.schmidt_spectra` for a
+    discussion on Schmidt spectra]. According to the realignment criterion [see
+    Refs. [Chen1]_ and [Rudolph1]_ for more detailed discussions regarding the
+    realignment criterion], if :math:`\sum_{c} S_{r, c} > 1`, then the system is
+    in a bipartite entangled state for the bipartition formed by splitting the
+    chain in two between sites :math:`r` and :math:`r+1` [i.e. at the
+    :math:`r^{\mathrm{th}}` bond]. It is important to note that :math:`\sum_{c}
+    S_{r, c} \le 1` is a necessary condition for a state to be separable
+    [i.e. not entangled] for the aforementioned bipartition, however it is not
+    *sufficient*. Therefore, for a given bipartition of the chain, there exist
+    bipartite entangled states that violate :math:`\sum_{c} S_{r, c} > 1`. That
+    being said, :math:`\sum_{c} S_{r, c} \le 1` is considered to be a strong
+    condition for separability, according to Refs. [Chen1]_ and [Rudolph1]_,
+    hence the criterion :math:`\sum_{c} S_{r, c} > 1` should detect most
+    bipartite entangled states.
 
-    Let :math:`S_{r, c}` be the Schmidt spectrum for the 
-    :math:`r^{\mathrm{th}}` bond [see documentation for the function 
-    :func:`sbc.state.realignment_criterion` for a discussion on Schmidt
-    spectra]. According to the realignment criterion [see Refs. [Chen1]_ and
-    [Rudolph1]_ for more detailed discussions regarding the realignment 
-    criterion], if :math:`\sum_{c} S_{r, c} > 1` for any of the bonds, then the 
-    system is entangled.
-
-    :func:`sbc.state.realignment_criterion` determines whether the system is
-    entangled at the current moment in time :math:`t` using the realignment
-    criterion. The current time is stored in the :obj:`sbc.state.SystemState` 
-    object ``system_state``.    
+    For finite chains, :func:`sbc.state.realignment_criterion` calculates
+    :math:`\sum_{c} S_{r, c}` for each bond at the current moment in time
+    :math:`t`. The current time is stored in the :obj:`sbc.state.SystemState`
+    object ``system_state``. The resulting sums can then be read-off to
+    determine whether the system satisfies the realignment criterion for any of
+    its possible bipartitions. This function can only be applied to finite
+    systems since for infinite systems we cannot determine the trace of the
+    system's reduced density matrix, which is required to calculate the
+    renormalized Schmidt spectra.
 
     Parameters
     ----------
     system_state : :class:`sbc.state.SystemState`
-        The system state, where the system must be a **finite** chain.
+        The system state. The system must be a finite chain.
 
     Returns
     -------
-    entangled : `bool`
-        If ``entangled`` is set to ``True``, then the system is entangled. 
-        Otherwise, it is not.
+    result : `array_like` (`float`, shape=(system_state.L-1,))
+        ``result[r]`` is the Schmidt spectrum sum for the ``r`` th bond, 
+        rescaled by the trace of the system's reduced density matrix.
     """
+    # This function is only supported for finite chains.
     if system_state.system_model.is_infinite:
-        raise ValueError(_realignment_criterion_err_msg_1)
+        raise ValueError(_realignment_criterion_msg_1)
     
-    S_sum = np.array(schmidt_spectrum_sum(system_state))
-    entangled = np.any(S_sum > 1)
+    S_nodes = schmidt_spectra(system_state)
 
-    return entangled
+    result = []
+
+    for S_node in S_nodes:
+        edge = S_node[0] ^ S_node[1]
+        S_node_after_taking_trace = tn.contract(edge)
+        S_sum = float(np.real(S_node_after_taking_trace.tensor))
+        result.append(S_sum)
+    
+    return result
 
 
 
@@ -1233,6 +1439,11 @@ def spin_config_prob(spin_config, system_state):
     prob : `float`
         The spin configuration probability.
     """
+    # DM: Detailed manuscript.
+
+    # This function implements Eq. (256) of DM. For additional context see
+    # Sec. 4.10 of DM.
+    
     L = system_state.system_model.L
     if system_state.system_model.is_infinite:
         if len(spin_config) % L != 0:
@@ -1257,9 +1468,11 @@ def spin_config_prob(spin_config, system_state):
         physical_1_legged_node = tn.Node(tensor)
         physical_1_legged_nodes.append(physical_1_legged_node)
 
+    # This executes the implementation of Eq. (252) of DM. Note that Eq. (256)
+    # of DM is a special case of Eq. (252) of DM.
     prob = _apply_1_legged_nodes_to_system_state_mps(physical_1_legged_nodes,
                                                      system_state)
-    prob = float(np.real(prob)) / _trace(system_state)
+    prob = float(np.real(prob))
 
     return prob
 
@@ -1307,13 +1520,13 @@ _check_recovered_pkl_part_err_msg_4 = \
      "`sbc.bath.Model` object, one specifies a system with y-noise whereas the "
      "other does not.")
 
-_schmidt_spectrum_sum_err_msg_1a = \
-    ("This function can only be applied to finite chains.")
-_schmidt_spectrum_sum_err_msg_1b = \
-    ("Valid bond indices range from 0 to `L-2`, where `L` is unit cell size.")
+_schmidt_spectra_msg_1 = \
+    ("The function `sbc.state.schmidt_spectra` is only supported for finite "
+     "chains.")
 
-_realignment_criterion_err_msg_1 = \
-    ("This function can only be applied to finite chains.")
+_realignment_criterion_msg_1 = \
+    ("The function `sbc.state.realignment_criterion` is only supported for "
+     "finite chains.")
 
 _spin_config_prob_err_msg_1a = \
     ("The number of spins in the given spin configuration should be a positive "
@@ -1321,7 +1534,6 @@ _spin_config_prob_err_msg_1a = \
 _spin_config_prob_err_msg_1b = \
     ("The number of spins in the given spin configuration does not match the "
      "unit cell size.")
-
 _spin_config_prob_err_msg_2 = \
     ("A valid spin configuration consists of an array with each element equal "
      "to either 1 (signifying an Ising spin pointing 'up'), or -1 (signifying "

@@ -173,7 +173,7 @@ __copyright__ = "Copyright 2021"
 __credits__ = ["Matthew Fitzpatrick"]
 __maintainer__ = "Matthew Fitzpatrick"
 __email__ = "mfitzpatrick@dwavesys.com"
-__status__ = "Non-Production"
+__status__ = "Development"
 
 
 
@@ -500,9 +500,9 @@ class SpectralDensityCmpnt():
 
 
     def _eval(self, omega):
-        # See Appendix D.2 of detailed manuscript on our QUAPI-TN approach for
+        # See Appendix C of detailed manuscript on our QUAPI-TN approach for
         # the rational behind the following implementation. In particular, see
-        # the discussion starting just above Eq. (636) to Eq. (641).
+        # Eqs. (582) to Eq. (585).
         if omega == 0.0:
             result = self.limit_0T.zero_pt_derivative / self.beta
         else:

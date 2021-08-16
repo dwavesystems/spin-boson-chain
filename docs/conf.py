@@ -230,4 +230,4 @@ intersphinx_mapping = {
 # extlinks
 extlinks = {'arxiv': ('https://arxiv.org/abs/%s', 'arXiv:'),
             'doi': ('https://dx.doi.org/%s', 'doi:'),
-            'manual': ('https://confluence.dwavesys.com/display/~mfitzpatrick/Simulating+dynamics+of+flux+qubit+chains+with+charge+and+hybrid+flux+noise+using+tensor+networks/%s', '')}
+            'manual': ('https://confluence.dwavesys.com/download/attachments/89501105/manuscript.pdf?version=3&modificationDate=1628901443175&api=v2/%s', '')}

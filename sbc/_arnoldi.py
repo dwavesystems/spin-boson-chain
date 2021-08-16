@@ -34,7 +34,7 @@ __copyright__ = "Copyright 2021"
 __credits__ = ["Matthew Fitzpatrick"]
 __maintainer__ = "Matthew Fitzpatrick"
 __email__ = "mfitzpatrick@dwavesys.com"
-__status__ = "Non-Production"
+__status__ = "Development"
 
 
 
@@ -43,6 +43,13 @@ __status__ = "Non-Production"
 ##################################
 
 def left_segment_ev_of_id(C, Lambda_Theta):
+    # [1]: Annals of Physics 326 (2011) 96-192.
+
+    # This function evaluates the generalization of Eq. (351) of [1] to an
+    # L-site unit cell, where L>0.
+
+    # See comments in function sbc._svd.Lambda_Theta_form for a description of
+    # the Lambda_Theta object.
     Lambda = Lambda_Theta[0]
     Theta_nodes = Lambda_Theta[1]
 
@@ -67,6 +74,13 @@ def left_segment_ev_of_id(C, Lambda_Theta):
 
 
 def right_segment_ev_of_id(C, Lambda_Theta):
+    # [1]: Annals of Physics 326 (2011) 96-192.
+
+    # This function evaluates the generalization of Eq. (354) of [1] to an
+    # L-site unit cell, where L>0.
+
+    # See comments in function sbc._svd.Lambda_Theta_form for a description of
+    # the Lambda_Theta object.
     Lambda = Lambda_Theta[0]
     Theta_nodes = Lambda_Theta[1]
 
@@ -90,43 +104,54 @@ def right_segment_ev_of_id(C, Lambda_Theta):
 
 
 
-def dominant_eigpair_of_transfer_matrix(Lambda_Theta,
-                                        unit_cell_type,
-                                        krylov_dim,
-                                        epsilon_D):
-    kwargs = {"Lambda_Theta": Lambda_Theta,
-              "unit_cell_type": unit_cell_type,
-              "krylov_dim": krylov_dim,
-              "epsilon_D": epsilon_D}
-    factorization_with_restart_alg = FactorizationWithRestartAlg(**kwargs)
+def vdot(a, b):
+    # This function is a generalization of numpy's vdot function, where a and b
+    # are both rank-2 tensors.
+    conj_a = tn.conj(a)
+    conj_a[0] ^ b[0]
+    conj_a[1] ^ b[1]
+    result = tn.contract_between(node1=conj_a, node2=b)
+    result = complex(np.array(result.tensor))
 
-    while not factorization_with_restart_alg.has_converged():
-        factorization_with_restart_alg.step()
-
-    dominant_eigval = factorization_with_restart_alg.dominant_ritz_eigval
-    dominant_eigvec = factorization_with_restart_alg.dominant_ritz_eigvec
-
-    return dominant_eigval, dominant_eigvec
+    return result
 
         
 
 class FactorizationAlg():
     r"""A class implementing the k-step Arnoldi factorization as outlined in
-    http://www.netlib.org/utk/people/JackDongarra/etemplates/node221.html.
+    http://www.netlib.org/utk/people/JackDongarra/etemplates/node221.html ([2]).
     """
     def __init__(self, Lambda_Theta, unit_cell_type, krylov_dim):
+        # [1]: Annals of Physics 326 (2011) 96-192.
+        
+        # See comments in function sbc._svd.Lambda_Theta_form for a description
+        # of the Lambda_Theta object.
         self.Lambda_Theta = Lambda_Theta
+        
+        # unit_cell_type indicates whether we are applying the Arnoldi
+        # factorization to either the transfer matrix given by Eq. (351) or
+        # (354) of [1]: if unit_cell_type="left" then its Eq. (351), else if
+        # unit_cell_type="right" then its Eq. (354).
         self.unit_cell_type = unit_cell_type
+
+        # krylov_dim is essentially k in [2].
         self.krylov_dim = krylov_dim
         
         self.step_count = 0
+
+        # Indicates whether the Arnoldi procedure should be terminated early.
         self.terminated_early = False
+
+        # The upper Hessenberg matrix in [2], H_k.
         self.H = np.zeros([krylov_dim, krylov_dim], dtype=np.complex)
 
+        # self.f is f in [2].
         self.random_f()
-            
+
+        # self.V stores the Arnoldi vector discussed in [2].
         self.V = [tn.Node(np.zeros(self.f.shape)) for _ in range(krylov_dim)]
 
+        # self.beta is beta in [2].
         self.beta = tn.norm(self.f)
 
         return None
@@ -134,6 +159,7 @@ class FactorizationAlg():
 
 
     def random_f(self):
+        # See comments in __init__ for descriptions of various quantities.
         chi = self.Lambda_Theta[0].shape[0]
         
         # Ensure the random f is Hermitian and semidefinite.
@@ -146,6 +172,7 @@ class FactorizationAlg():
 
 
     def gen_new_krylov_vector(self, C):
+        # See comments in __init__ for descriptions of various quantities.
         if self.unit_cell_type == "left":
             C = C.copy()
             C = C.reorder_axes([1, 0])
@@ -159,6 +186,10 @@ class FactorizationAlg():
 
 
     def step(self):
+        # [2]: http://www.netlib.org/utk/people/JackDongarra/
+        #      etemplates/node221.html
+        # See comments in __init__ for descriptions of various quantities.
+        # This method implements a single step of algorithm 7.35 of [2].
         step_count = self.step_count
 
         self.V[step_count] = self.f / tn.norm(self.f)
@@ -195,6 +226,7 @@ class FactorizationAlg():
 
 
     def update_V_H_f_beta_and_step_count(self, V, H, f, beta, step_count):
+        # This method is called by the implicit restart Arnoldi scheme.
         self.V = V
         self.H = H
         self.f = f
@@ -210,6 +242,10 @@ class FactorizationAlg():
 
 
     def ritz_eigenpairs(self):
+        # [3]: http://www.netlib.org/utk/people/JackDongarra/
+        #      etemplates/node216.html
+        # This method calculates the Ritz eigenpairs of our transfer matrix.
+        # See [3] for a discussion on Ritz eigenvalues and eigenvectors.
         m = self.step_count
 
         H_eigvals, H_eigvecs = scipy.linalg.eig(self.H[:m, :m])
@@ -227,13 +263,28 @@ class FactorizationAlg():
 class FactorizationWithRestartAlg():
     r"""A class implementing the implicitly restarted Arnoldi factorization as 
     outlined in 
-    http://www.netlib.org/utk/people/JackDongarra/etemplates/node222.html.
+    http://www.netlib.org/utk/people/JackDongarra/etemplates/node222.html ([4]).
     """
     def __init__(self, Lambda_Theta, unit_cell_type, krylov_dim, epsilon_D):
+        # [1]: Annals of Physics 326 (2011) 96-192.
+        
+        # See comments in function sbc._svd.Lambda_Theta_form for a description
+        # of the Lambda_Theta object.
+
+        # unit_cell_type indicates whether we are applying the Arnoldi procedure
+        # to either the transfer matrix given by Eq. (351) or (354) of [1]: if
+        # unit_cell_type="left" then its Eq. (351), else if
+        # unit_cell_type="right" then its Eq. (354).
+
+        # krylov_dim is essentially m in [4].
+
+        # The implicit restart scheme requires the factorization scheme.
         self.factorization_alg = FactorizationAlg(Lambda_Theta,
                                                   unit_cell_type,
                                                   krylov_dim)
-        self.k = 1
+
+        # self.k and self.p are k and p in [4] respectively.
+        self.k = 1  # We're only interested in the dominant eigenpair.
         self.p = krylov_dim - self.k
         self.epsilon_D = epsilon_D  # A kind of relative error tolerance.
         self.num_restarts = 0
@@ -248,6 +299,10 @@ class FactorizationWithRestartAlg():
 
 
     def step(self):
+        # [4]: http://www.netlib.org/utk/people/JackDongarra/
+        #      etemplates/node222.html
+        # See comments in __init__ for descriptions of various quantities.
+        # This method implements a single step of algorithm 7.36 of [4].
         k = self.k
         p = self.p
         m = k + p
@@ -289,6 +344,7 @@ class FactorizationWithRestartAlg():
         beta = tn.norm(f)
         step_count = k
 
+        # Restart Arnoldi factorization.
         self.factorization_alg.update_V_H_f_beta_and_step_count(V,
                                                                 H,
                                                                 f,
@@ -307,6 +363,11 @@ class FactorizationWithRestartAlg():
 
 
     def has_converged(self):
+        # See comments in __init__ for descriptions of various quantities.
+        # This method implements a single step of algorithm 7.36 of [4].
+
+        # This method checks whether the Arnoldi procedure has converged.
+        
         if self.factorization_alg.terminated_early:
             self.update_ritz_eigenpairs()
             if self.factorization_alg.unit_cell_type == "left":
@@ -316,10 +377,10 @@ class FactorizationWithRestartAlg():
         elif self.num_restarts == 0:
             result = False
         else:
-            theta = tn.Node(self.dominant_ritz_eigval)
+            eigval = tn.Node(self.dominant_ritz_eigval)
             u = self.dominant_ritz_eigvec
             wu = self.factorization_alg.gen_new_krylov_vector(C=u)
-            residual_norm = tn.norm(wu - theta * u) / tn.norm(theta)
+            residual_norm = tn.norm(wu - eigval * u) / tn.norm(eigval)
             result = True if residual_norm < self.epsilon_D else False
 
             if self.factorization_alg.unit_cell_type == "left":
@@ -332,6 +393,11 @@ class FactorizationWithRestartAlg():
 
 
     def update_ritz_eigenpairs(self):
+        # [3]: http://www.netlib.org/utk/people/JackDongarra/
+        #      etemplates/node216.html
+        
+        # This method updates attributes storing Ritz eigenpairs. See [3] for a
+        # discussion on Ritz eigenvalues and eigenvectors.
         self.ritz_eigvals, self.ritz_eigvecs = \
             self.factorization_alg.ritz_eigenpairs()
         
@@ -345,14 +411,35 @@ class FactorizationWithRestartAlg():
             self.ritz_eigvecs[self.dominant_ritz_eigval_idx]
 
         return None
-        
 
 
-def vdot(a, b):
-    conj_a = tn.conj(a)
-    conj_a[0] ^ b[0]
-    conj_a[1] ^ b[1]
-    result = tn.contract_between(node1=conj_a, node2=b)
-    result = complex(np.array(result.tensor))
 
-    return result
+def dominant_eigpair_of_transfer_matrix(Lambda_Theta,
+                                        unit_cell_type,
+                                        krylov_dim,
+                                        epsilon_D):
+    # [1]: Annals of Physics 326 (2011) 96-192.
+
+    # See comments in function sbc._svd.Lambda_Theta_form for a description
+    # of the Lambda_Theta object.
+
+    # unit_cell_type indicates whether we are finding the dominant eigenpair
+    # to either the transfer matrix given by Eq. (351) or (354) of [1]: if
+    # unit_cell_type="left" then its Eq. (351), else if unit_cell_type="right"
+    # then its Eq. (354).
+
+    # See comments in constructor of FactorizationWithRestartAlg for
+    # descriptions of krylov_dim and epsilon_D.
+    kwargs = {"Lambda_Theta": Lambda_Theta,
+              "unit_cell_type": unit_cell_type,
+              "krylov_dim": krylov_dim,
+              "epsilon_D": epsilon_D}
+    factorization_with_restart_alg = FactorizationWithRestartAlg(**kwargs)
+
+    while not factorization_with_restart_alg.has_converged():
+        factorization_with_restart_alg.step()
+
+    dominant_eigval = factorization_with_restart_alg.dominant_ritz_eigval
+    dominant_eigvec = factorization_with_restart_alg.dominant_ritz_eigvec
+
+    return dominant_eigval, dominant_eigvec

@@ -6,12 +6,17 @@ ferromagnetic spin chain subject to fixed uniform transverse and longitudinal
 fields, longitudinal couplings, and longitudinal noise (i.e. :math:`z`-noise)
 with a spectral density comprising of a single ohmic component. The coupling
 between the system and the environment is constant in time. The simulation
-tracks the energy per spin, :math:`\left\langle\hat{\sigma}_{x;
-r=0}(t)\right\rangle`, :math:`\left\langle\hat{\sigma}_{z;
+tracks the energy per spin, the first three correlation lengths [see the 
+documentation for the attribute 
+:attr:`sbc.state.SystemState.correlation_lengths` for a discussion on 
+correlation lengths], 
+:math:`\left\langle\hat{\sigma}_{x; r=0}(t)\right\rangle`, 
+:math:`\left\langle\hat{\sigma}_{z; 
 r=0}(t)\hat{\sigma}_{z; r+1}(t)\right\rangle`, and
 :math:`\left\langle\hat{\sigma}_{x; 0}(t) \hat{\sigma}_{z; 1}(t)\hat{\sigma}_{x;
 2}(t)\right\rangle`, where :math:`r=0` is the center spin site of the infinite
-chain.
+chain. We also show how one can periodically backup the simulation data to file 
+in case of a crash and how to recover a simulation.
 
 This script includes the following steps:
 1. Set default backend for the tensornetwork library (used to construct and
@@ -19,7 +24,7 @@ This script includes the following steps:
 2. Construct the spin-boson model.
     a) Define all system model parameters.
     b) Define all bath model components.
-3. Set the truncation parameters for the matrix product states (MPS's) 
+3. Set the compression parameters for the matrix product states (MPS's) 
    representing the system state and the local influence functionals.
 4. Set parameters related to the tensor network algorithm.
 5. Construct a MPS representing the initial state of the spin system.
@@ -28,7 +33,9 @@ This script includes the following steps:
 7. Construct a 'wish-list' of the quantities that you would like to report to 
    files as the system evolve.
 8. Set the output directory to which to report.
-9. Run simulation and periodically report to files.
+9. Run simulation, periodically report to files, and periodically backup
+   simulation data to file.
+
 """
 
 
@@ -42,6 +49,13 @@ import time
 
 # To determine the current working directory and to set # threads to use.
 import os
+
+# For making directories (i.e. emulating mkdir) and checking whether files
+# exists.
+import pathlib
+
+# For ending example script early.
+import sys
 
 
 
@@ -85,8 +99,8 @@ from sbc import system
 # For specifying the bath model components.
 from sbc import bath
 
-# For specifying how to truncate Schmidt spectra in MPS compression.
-from sbc import trunc
+# For specifying how to compress MPS's.
+from sbc import compress
 
 # For specifying parameters related to the tensor network algorithm.
 from sbc import alg
@@ -141,11 +155,11 @@ if use_tensorflow_as_backend:
 # parameters. See the documentation for the module :mod:`sbc.system` for a
 # discussion of the system model parameters. The following line of code
 # specifies an infinite ferromagnetic spin chain subject to fixed uniform
-# transverse and longitudinal fields, and longitudinal couplings.
-L = 2  # Number of spin in unit cell.
-system_model = system.Model(x_fields=[-0.25]*L,
-                            z_fields=[-0.05]*L,
-                            zz_couplers=[1.0]*L,
+# transverse and longitudinal fields, and longitudinal couplings. Note that
+# the system of interest can be modelled using a single-site unit cell (L=1).
+system_model = system.Model(x_fields=[-0.25],
+                            z_fields=[-0.05],
+                            zz_couplers=[1.0],
                             is_infinite=True)
 
 # The next step towards constructing our spin-boson model is to specify the bath
@@ -173,34 +187,36 @@ A_z_0T_cmpnt = bath.SpectralDensityCmpnt0T(func_form=A_z_0T_cmpnt_func_form,
 
 A_z_0T = bath.SpectralDensity0T(cmpnts=[A_z_0T_cmpnt])
 
-bath_model = bath.Model(L=L,
+bath_model = bath.Model(L=system_model.L,
                         beta=25,  # Inverse temperature beta=1/(kB*T).
                         memory=2.5,  # The system's memory.
-                        z_coupling_energy_scales=[1.0]*L,  # Constant coupling.
-                        z_spectral_densities_0T=[A_z_0T]*L)
+                        z_coupling_energy_scales=[1.0],  # Constant coupling.
+                        z_spectral_densities_0T=[A_z_0T])
 
 
 
-# Next, we set the truncation parameters for the matrix product states (MPS's)
-# representing the system state and the local path functionals. In short,
-# increasing and decreasing the parameters `max_num_singular_values` and
-# `max_trunc_err` respectively translate to MPS's with larger bond dimensions
-# `chi` which generally translates to a decrease in numerical errors in the
-# simulation. However, since the most computationally intensive parts of the
-# simulation scale like `chi^3`, increasing and decreasing the parameters
-# `max_num_singular_values` and `max_trunc_err` respectively lead to longer
-# runtimes.
-influence_trunc_params = trunc.Params(max_num_singular_values=64,
-                                      max_trunc_err=1.e-14)
-state_trunc_params = trunc.Params(max_num_singular_values=1)  # b/c single spin.
+# Next, we set the compression parameters for the matrix product states (MPS's)
+# that span time as well as those that span space. 'Temporal' MPS's are used to
+# represent influence functionals/paths, where 'spatial' MPS's are used to
+# represent the system's state. See the documentation for the class
+# sbc.compress.Params for a description of each available compression parameter.
+temporal_compress_params = compress.Params(method="zip-up",
+                                           max_num_singular_values=32,
+                                           max_trunc_err=1.e-14,
+                                           svd_rel_tol=1.e-12,
+                                           max_num_var_sweeps=2,
+                                           var_rel_tol=1e-8)
+spatial_compress_params = compress.Params(max_num_singular_values=32,
+                                          max_trunc_err=1.e-14,
+                                          svd_rel_tol=1.e-12)
 
 
 
 # Next, we set the parameters relating to the tensor network algorithm used to
 # simulate the dynamics.
 alg_params = alg.Params(dt=0.1,
-                        influence_trunc_params=influence_trunc_params,
-                        state_trunc_params=state_trunc_params)
+                        temporal_compress_params=temporal_compress_params,
+                        spatial_compress_params=spatial_compress_params)
 
 
 
@@ -219,16 +235,28 @@ tensor = np.zeros([1, 2, 1], dtype=np.complex128)
 tensor[0, 0, 0] = 1 / np.sqrt(2)  # sz=1 amplitude.
 tensor[0, 1, 0] = 1 / np.sqrt(2)  # sz=-1 amplitude.
 node = tn.Node(tensor)
-initial_state_nodes = [node] * L
+initial_state_nodes = [node] * system_model.L
 
 
 
-# Next, we construct an object representing the system state, which also encodes
-# the dynamics of the spin system.
-system_state = SystemState(system_model,
-                           bath_model,
-                           alg_params,
-                           initial_state_nodes)
+# Construct system state. If backup is available from a previous unfinished
+# simulation, then use that to reconstruct last save state from said
+# simulation and resume simulation from there.
+recover = True
+output_dir = os.path.dirname(os.path.abspath(__file__)) + "/output"
+backup_pkl_filename = output_dir + '/system-state-backup.pkl'
+if recover and pathlib.Path(backup_pkl_filename).is_file():
+    kwargs = {"pkl_filename": backup_pkl_filename,
+              "system_model": system_model,
+              "bath_model": bath_model,
+              "forced_gc": True}  # Enforce garbage collection.
+    system_state = SystemState.recover_and_resume(**kwargs)
+    print("Recovered a `sbc.state.SystemState` object from backup.")
+else:
+    system_state = SystemState(system_model,
+                               bath_model,
+                               alg_params,
+                               initial_state_nodes)
 
 
 
@@ -238,29 +266,73 @@ system_state = SystemState(system_model,
 # for more details on other quantities that can be tracked.
 wish_list = WishList(ev_of_single_site_spin_ops=['sx'],
                      ev_of_nn_two_site_spin_ops=[('sz', 'sz')],
-                     ev_of_multi_site_spin_ops=[('sx', 'sz', 'sx', 'id')],
-                     ev_of_energy=True)
+                     ev_of_multi_site_spin_ops=[('sx', 'id', 'sz')],
+                     ev_of_energy=True,
+                     correlation_lengths=3)
 
 
 
 # Next, we specify the output directory to which to report and set the report
 # parameters.
-output_dir = os.path.dirname(os.path.abspath(__file__)) + "/output"
+pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 report_params = ReportParams(wish_list=wish_list, output_dir=output_dir)
 
 
 
+# If the job has already been completed and the recovery feature has been
+# enabled, then the job is not executed again.
+if recover:
+    filename = output_dir + "/job-completion-status.csv"
+    if pathlib.Path(filename).is_file():
+        with open(filename, 'r', 1) as file_obj:
+            line = file_obj.readline()
+        msg_1 = "Job has finished successfully.\n"
+        msg_2 = ("An internal job error was raised in the previous "
+                 "submission.\n")
+        if (line == msg_1) or (line == msg_2):
+            print("Job has finished successfully in a previous run.")
+            sys.exit()
+
+
+
+# Create output file indicating whether the job has successfully finished.
+job_incomplete_notice = np.array([['Job has/did not finished.']])
+filename = output_dir + "/job-completion-status.csv"
+with open(filename, 'w', 1) as file_obj:
+    np.savetxt(file_obj, job_incomplete_notice, fmt="%-20s")
+
+
+
 # Finally, we run the simulation and periodically report to files.
-t = 0.  # Initial time.
-t_f = 0.5  # Final time.
+t = system_state.t  # Initial time.
+t_f = 0.7  # Final time.
+backup_pkl_filename = output_dir + '/system-state-backup.pkl'
 
 print("Report at t = {}".format(t))
 report(system_state, report_params)
 while t < t_f:
-    system_state.evolve(num_steps=1)
+    # Here we specify additional parameters in our call to the method
+    # :meth:`sbc.state.SystemState.evolve` so that we enforce garbage
+    # collection for efficient memory consumption and backup the simulation data
+    # to file periodically. In case of a crash, we can recover the simulation
+    # data and resume where from the point of the last backup. See the
+    # documentation for the method :meth:`sbc.state.SystemState.evolve` for
+    # a more detailed discussion on backups.
+    system_state.evolve(num_steps=1,
+                        forced_gc=True,  # Enforce garbage collection.
+                        num_k_steps_per_dump=3,
+                        pkl_filename=backup_pkl_filename)
     t = system_state.t
     report(system_state, report_params)
     print("Report at t = {}".format(t))
+
+
+
+# Update job completion status output file.
+job_complete_notice = np.array([['Job has finished successfully.']])
+filename = output_dir + "/job-completion-status.csv"
+with open(filename, 'w', 1) as file_obj:
+    np.savetxt(file_obj, job_complete_notice, fmt="%-20s")
 
 
 

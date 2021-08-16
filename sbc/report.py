@@ -36,7 +36,7 @@ __copyright__ = "Copyright 2021"
 __credits__ = ["Matthew Fitzpatrick"]
 __maintainer__ = "Matthew Fitzpatrick"
 __email__ = "mfitzpatrick@dwavesys.com"
-__status__ = "Non-Production"
+__status__ = "Development"
 
 
 
@@ -68,26 +68,15 @@ class WishList():
 
     Parameters
     ----------
-    schmidt_spectrum_sum : `bool`, optional
-        Note that ``sbc`` can only calculate the Schmidt spectrum sum for
-        **finite** chains. If the system is finite and ``schmidt_spectrum_sum``
-        is set to ``True``, then the Schmidt spectrum sum for all bonds is to be
-        reported to the output file ``'schmidt-spectrum-sum.csv'`` upon calling 
-        the function :func:`sbc.report.report` using the 
-        :obj:`sbc.report.WishList` object. See the documentation for the 
-        function :func:`sbc.state.schmidt_spectrum_sum` for a discussion 
-        regarding Schmidt spectra and Schmidt spectrum sums.
     realignment_criterion : `bool`, optional
-        Note that ``sbc`` can only determine whether **finite** chains are
-        entangled via the realignment criterion. If the system is finite and 
-        ``realignment_criterion`` is set to ``True``, then the realignment 
-        criterion is to be applied to the system's current state to determine 
-        whether it is entangled, and the result of this operation is to be 
-        reported to the output file ``'realignment-criterion.csv'`` upon calling
-        the function :func:`sbc.report.report` using the 
-        :obj:`sbc.report.WishList` object. See the documentation for the 
-        function :func:`sbc.state.realignment_criterion` for a brief discussion 
-        regarding the realignment criterion.
+        Note that this wish list item is only available for **finite** chains. 
+        If ``realignment_criterion`` is set to ``True``, then the Schmidt 
+        spectrum sums are to be reported to the output file 
+        ``'realignment-criterion.csv'`` upon calling the function 
+        :func:`sbc.report.report` using the :obj:`sbc.report.WishList` object. 
+        See the documentation for the function 
+        :func:`sbc.state.realignment_criterion` for a discussion regarding 
+        Schmidt spectrum sums and entanglement detection.
     spin_config_probs : ``[]`` | `array_like` (``-1`` | ``1``, shape=(``num_configs``, ``M*L``)), optional
         If ``spin_config_probs`` is of the form 
         `array_like` (``-1`` | ``1``, shape=(``num_configs``, ``M*L``)),
@@ -176,18 +165,20 @@ class WishList():
         using the :obj:`sbc.report.WishList` object. See the documentation for 
         the function :func:`sbc.ev.energy` for further details on the
         aforementioned energy.
-    correlation_length : `bool`, optional
-        Note that ``sbc`` can only calculate the correlation length for
-        **infinite** chains. If the system is infinite and 
-        ``correlation_length`` is set to ``True``, then the correlation length 
-        is to be reported to the output file ``'correlation-length.csv'`` upon 
-        calling the function :func:`sbc.report.report` using the 
-        :obj:`sbc.report.WishList` object.
+    correlation_lengths : int, optional
+        Note that this wish list item is only available for **infinite** chains.
+        If ``correlation_lengths>0`` then the largest ``correlation_lengths`` 
+        correlation lengths are to be reported to the output file 
+        ``'correlation-lengths.csv'`` upon calling the function 
+        :func:`sbc.report.report` using the :obj:`sbc.report.WishList` object. 
+        If there are less than ``correlation_lengths`` correlation lengths that
+        can be calculated, then the remaining row entries for a given time index
+        are set to '0'. See the documentation for the attribute 
+        :attr:`sbc.state.SystemState.correlation_lengths` for a definition of 
+        the correlation lengths.
 
     Attributes
     ----------
-    schmidt_spectrum_sum : `bool`, read-only
-        Same description as that in the parameters section above.
     realignment_criterion : `bool`, read-only
         Same description as that in the parameters section above.
     spin_config_probs : ``[]`` | `array_like` (``-1`` | ``1``, shape=(``num_configs``, ``M*L``)), read-only
@@ -200,31 +191,30 @@ class WishList():
         Same description as that in the parameters section above.
     ev_of_energy : `bool`, read-only
         Same description as that in the parameters section above.
-    correlation_length : `bool`, read-only
+    correlation_lengths : `int`, read-only
         Same description as that in the parameters section above.
     """
     def __init__(self,
-                 schmidt_spectrum_sum=False,
                  realignment_criterion=False,
                  spin_config_probs=[],
                  ev_of_single_site_spin_ops=[],
                  ev_of_multi_site_spin_ops=[],
                  ev_of_nn_two_site_spin_ops=[],
                  ev_of_energy=False,
-                 correlation_length=False):
-        self.schmidt_spectrum_sum = schmidt_spectrum_sum
+                 correlation_lengths=False):
         self.realignment_criterion = realignment_criterion
         self.spin_config_probs = spin_config_probs
         self.ev_of_single_site_spin_ops = ev_of_single_site_spin_ops
         self.ev_of_multi_site_spin_ops = ev_of_multi_site_spin_ops
         self.ev_of_nn_two_site_spin_ops = ev_of_nn_two_site_spin_ops
         self.ev_of_energy = ev_of_energy
-        self.correlation_length = correlation_length
+        self.correlation_lengths = correlation_lengths
 
         self._check_spin_config_probs()
         self._check_ev_of_single_site_spin_ops()
         self._check_ev_of_multi_site_spin_ops()
         self._check_ev_of_nn_two_site_spin_ops()
+        self._check_correlation_lengths()
 
         return None
 
@@ -257,6 +247,7 @@ class WishList():
         parameter_str = 'sbc.report.ev_of_single_site_spin_ops'
         for op_string in self.ev_of_single_site_spin_ops:
             self._check_op_string(op_string, parameter_str)
+            
         return None
 
 
@@ -290,6 +281,7 @@ class WishList():
                 raise ValueError(msg)
             self._check_op_string(op_string_pair[0], parameter_str)
             self._check_op_string(op_string_pair[1], parameter_str)
+            
         return None
 
 
@@ -300,6 +292,15 @@ class WishList():
             if op not in ('sx', 'sy', 'sz', 'id'):
                 msg = _wish_list_check_op_string_err_msg_1.format(parameter_str)
                 raise ValueError(msg)
+
+        return None
+
+
+
+    def _check_correlation_lengths(self):
+        if self.correlation_lengths < 0:
+            msg = _wish_list_check_correlation_lengths_msg_1
+            raise ValueError(msg)
 
         return None
 
@@ -385,21 +386,12 @@ def report(system_state, report_params):
 
     wish_list = report_params.wish_list
 
-    if wish_list.schmidt_spectrum_sum or wish_list.realignment_criterion:
-        S_sum = sbc.state.schmidt_spectrum_sum(system_state)
-        if wish_list.schmidt_spectrum_sum:
-            line = np.array([[t] + S_sum])
-            filename = 'schmidt-spectrum-sum.csv'
-            with open(output_dir + '/' + filename, 'a', 1) as file_obj:
-                np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
-
-        if wish_list.realignment_criterion:
-            S_sum = np.array(S_sum)
-            entangled = np.any(S_sum > 1)
-            line = np.array([(t, entangled)], dtype='f8, ?')
-            filename = 'realignment-criterion.csv'
-            with open(output_dir + '/' + filename, 'a', 1) as file_obj:
-                np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
+    if wish_list.realignment_criterion:
+        schmidt_spectrum_sums = sbc.state.realignment_criterion(system_state)
+        line = np.array([[t] + schmidt_spectrum_sums])
+        filename = 'realignment-criterion.csv'
+        with open(output_dir + '/' + filename, 'a', 1) as file_obj:
+            np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
 
     if wish_list.spin_config_probs:
         for i, spin_config in enumerate(wish_list.spin_config_probs):
@@ -508,9 +500,17 @@ def report(system_state, report_params):
             with open(output_dir + '/' + filename, 'a', 1) as file_obj:
                 np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
 
-    if wish_list.correlation_length:
-        line = np.array([[t, system_state.correlation_length]])
-        filename = 'correlation-length.csv'
+    if wish_list.correlation_lengths > 0:
+        target_num = wish_list.correlation_lengths
+        correlation_lengths = system_state.correlation_lengths
+        pad_size = max(0, target_num - len(correlation_lengths))
+        correlation_lengths = list(np.pad(correlation_lengths,
+                                          (0, pad_size),
+                                          'constant',
+                                          constant_values=(0,)))
+        correlation_lengths = correlation_lengths[:target_num]
+        line = np.array([[t] + correlation_lengths])
+        filename = 'correlation-lengths.csv'
         with open(output_dir + '/' + filename, 'a', 1) as file_obj:
             np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
                         
@@ -531,6 +531,9 @@ def _check_system_state_and_report_params(system_state, report_params):
             if len(str_seq_of_multi_spin_op) % L != 0:
                 msg = _check_system_state_and_report_params_err_msg_2a
                 raise ValueError(msg)
+        if wish_list.realignment_criterion:
+            msg = _check_system_state_and_report_params_err_msg_3a
+            raise ValueError(msg)
     else:
         for spin_config in wish_list.spin_config_probs:
             if len(spin_config) != L:
@@ -540,8 +543,8 @@ def _check_system_state_and_report_params(system_state, report_params):
             if len(str_seq_of_multi_spin_op) != L:
                 msg = _check_system_state_and_report_params_err_msg_2b
                 raise ValueError(msg)
-        if wish_list.correlation_length:
-            msg = _check_system_state_and_report_params_err_msg_3
+        if wish_list.correlation_lengths:
+            msg = _check_system_state_and_report_params_err_msg_3b
             raise ValueError(msg)
 
     return None
@@ -556,24 +559,21 @@ def _overwrite_data_from_report_files(system_state, report_params):
     is_infinite = system_state.system_model.is_infinite
     num_bonds = L - 1 + int(is_infinite)
 
+    # bond_header_1 used for realignment_criterion reporting. 
     bond_header_1 = \
         np.array([['t'] + ['at bond #'+str(i) for i in range(num_bonds)]])
+
+    # bond_header_2 used for ev_of_nn_two_site_spin_ops reporting.
     bond_header_2 = \
         np.array([['t'] + ['EV at bond #'+str(i) for i in range(num_bonds)]])
+    
     site_header = np.array([['t'] + ['EV at site #'+str(r) for r in range(L)]])
 
-    
-    if wish_list.schmidt_spectrum_sum:
-        filename = 'schmidt-spectrum-sum.csv'
-        with open(output_dir + '/' + filename, 'w', 1) as file_obj:
-            np.savetxt(file_obj, bond_header_1, fmt="%-20s", delimiter=";")
-
     if wish_list.realignment_criterion:
-        header = np.array([['t', 'entangled']])
         filename = 'realignment-criterion.csv'
         with open(output_dir + '/' + filename, 'w', 1) as file_obj:
-            np.savetxt(file_obj, header, fmt="%-20s", delimiter=";")
-
+            np.savetxt(file_obj, bond_header_1, fmt="%-20s", delimiter=";")
+    
     if wish_list.spin_config_probs:
         configs = wish_list.spin_config_probs
         num_configs = len(configs)
@@ -649,9 +649,11 @@ def _overwrite_data_from_report_files(system_state, report_params):
         with open(output_dir + '/' + filename, 'w', 1) as file_obj:
             np.savetxt(file_obj, header, fmt="%-20s", delimiter=";")
 
-    if wish_list.correlation_length:
-        header = np.array([['t', 'correlation-length']])
-        filename = 'correlation-length.csv'
+    if wish_list.correlation_lengths > 0:
+        header = ['correlation-length #'+str(i)
+                  for i in range(wish_list.correlation_lengths)]
+        header = np.array([['t'] + header])
+        filename = 'correlation-lengths.csv'
         with open(output_dir + '/' + filename, 'w', 1) as file_obj:
             np.savetxt(file_obj, header, fmt="%-20s", delimiter=";")
 
@@ -696,6 +698,10 @@ _wish_list_check_op_string_err_msg_1 = \
      "correct form: only concatenations of the strings 'sx', 'sy', 'sz', and "
      "'id', separated by periods '.', are accepted.")
 
+_wish_list_check_correlation_lengths_msg_1 = \
+    ("The parameter `correlation_lengths` of the `sbc.report.WishList` class "
+     "is expected to be a non-negative integer.")
+
 _check_system_state_and_report_params_err_msg_1a = \
     ("The parameter `spin_config_probs` of the `sbc.report.WishList` class is "
      "expected to be a sequence of classical Ising spin configurations, where "
@@ -718,5 +724,7 @@ _check_system_state_and_report_params_err_msg_2b = \
      "the number of operator strings in each operator string sequence is equal "
      "to the number of spins in the system.")
 
-_check_system_state_and_report_params_err_msg_3 = \
-    ("Cannot calculate the correlation length for finite chains.")
+_check_system_state_and_report_params_err_msg_3a = \
+    ("Cannot apply the realignment criterion to infinite chains.")
+_check_system_state_and_report_params_err_msg_3b = \
+    ("Cannot calculate the correlation lengths for finite chains.")

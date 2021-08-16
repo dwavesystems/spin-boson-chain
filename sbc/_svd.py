@@ -33,7 +33,7 @@ __copyright__ = "Copyright 2021"
 __credits__ = ["Matthew Fitzpatrick"]
 __maintainer__ = "Matthew Fitzpatrick"
 __email__ = "mfitzpatrick@dwavesys.com"
-__status__ = "Non-Production"
+__status__ = "Development"
 
 
 
@@ -41,17 +41,29 @@ __status__ = "Non-Production"
 ## Define classes and functions ##
 ##################################
 
-def left_to_right_sweep(nodes, compress_params, is_infinite, normalize):
+def left_to_right_sweep(nodes, compress_params, normalize):
+    # [1]: Annals of Physics 326 (2011) 96-192.
+    # nodes represents a MPS or MPO.
+    
+    # This function brings a MPS or MPO [treated as a MPS] to left-canonical
+    # form as described in Sec. 4.4.1 of [1]. In the case of a MPO, the two
+    # physical edges are effectively combined into one during the procedure.
+    # If toggled, the singular values at each bond will be truncated according
+    # to the compression parameters given by compress_params.
+    
     truncated_schmidt_spectra = []
         
     num_nodes = len(nodes)
     imin = 0
-    imax = imin + (num_nodes - 2 + int(is_infinite))
+    imax = imin + (num_nodes - 2)
 
+    # current_orthogonal_center_idx is the index of the node to which to apply
+    # a SVD; normalize_schmidt_spectra [a bool] indicates whether to normalize
+    # the resulting singular value spectra a.k.a. schmidt spectra such that
+    # the sum of squares of said values equals unity.
     kwargs = {"nodes": nodes,
               "current_orthogonal_center_idx": imin,
               "compress_params": compress_params,
-              "is_infinite": is_infinite,
               "normalize_schmidt_spectra": normalize}
     
     for i in range(imin, imax+1):
@@ -59,24 +71,37 @@ def left_to_right_sweep(nodes, compress_params, is_infinite, normalize):
         U, S, V_dagger = shift_orthogonal_center_to_the_right(**kwargs)
         truncated_schmidt_spectra.append(S)
 
-    if (not is_infinite) and normalize:
+    if normalize:
+        # Normalize MPS/MPO such that its 'norm' equal unity.
         nodes[-1] /= tn.norm(nodes[-1])
 
     return truncated_schmidt_spectra
 
 
 
-def right_to_left_sweep(nodes, compress_params, is_infinite, normalize):
+def right_to_left_sweep(nodes, compress_params, normalize):
+    # [1]: Annals of Physics 326 (2011) 96-192.
+    # nodes represents a MPS or MPO.
+    
+    # This function brings a MPS or MPO [treated as a MPS] to right-canonical
+    # form as described in Sec. 4.4.2 of [1]. In the case of a MPO, the two
+    # physical edges are effectively combined into one during the procedure.
+    # If toggled, the singular values at each bond will be truncated according
+    # to the compression parameters given by compress_params.
+    
     truncated_schmidt_spectra = []
 
     num_nodes = len(nodes)
-    imax = num_nodes - 1 + int(is_infinite)
-    imin = imax - (num_nodes - 1 + int(is_infinite)) + 1
+    imax = num_nodes - 1
+    imin = 1
 
+    # current_orthogonal_center_idx is the index of the node to which to apply
+    # a SVD; normalize_schmidt_spectra [a bool] indicates whether to normalize
+    # the resulting singular value spectra a.k.a. schmidt spectra such that
+    # the sum of squares of said values equals unity.
     kwargs = {"nodes": nodes,
               "current_orthogonal_center_idx": imax,
               "compress_params": compress_params,
-              "is_infinite": is_infinite,
               "normalize_schmidt_spectra": normalize}
     
     for i in range(imax, imin-1, -1):
@@ -84,7 +109,8 @@ def right_to_left_sweep(nodes, compress_params, is_infinite, normalize):
         U, S, V_dagger = shift_orthogonal_center_to_the_left(**kwargs)
         truncated_schmidt_spectra.insert(0, S)
 
-    if (not is_infinite) and normalize:
+    if normalize:
+        # Normalize MPS/MPO such that its 'norm' equal unity.
         nodes[0] /= tn.norm(nodes[0])
 
     return truncated_schmidt_spectra
@@ -94,9 +120,9 @@ def right_to_left_sweep(nodes, compress_params, is_infinite, normalize):
 def shift_orthogonal_center_to_the_right(nodes,
                                          current_orthogonal_center_idx,
                                          compress_params,
-                                         is_infinite,
                                          normalize_schmidt_spectra):
-    # Function does not check correctness of 'current_orthogonal_center_idx'.
+    # See comments in function left_to_right_sweep for more info/context.
+    
     i = current_orthogonal_center_idx
 
     num_nodes = len(nodes)
@@ -104,7 +130,8 @@ def shift_orthogonal_center_to_the_right(nodes,
     num_edges_per_node = len(node_i.edges)
     left_edges = tuple(node_i[idx] for idx in range(num_edges_per_node-1))
     right_edges = (node_i[num_edges_per_node-1],)
-        
+
+    # Perform SVD on node_i.
     U, S, V_dagger = split_node_full(node_i,
                                      left_edges,
                                      right_edges,
@@ -130,9 +157,9 @@ def shift_orthogonal_center_to_the_right(nodes,
 def shift_orthogonal_center_to_the_left(nodes,
                                         current_orthogonal_center_idx,
                                         compress_params,
-                                        is_infinite,
                                         normalize_schmidt_spectra):
-    # Function does not check correctness of 'current_orthogonal_center_idx'.
+    # See comments in function right_to_left_sweep for more info/context.
+    
     i = current_orthogonal_center_idx
     
     num_nodes = len(nodes)
@@ -146,6 +173,7 @@ def shift_orthogonal_center_to_the_left(nodes,
                                      right_edges,
                                      compress_params)
 
+    # Perform SVD on node_i.
     if normalize_schmidt_spectra:
         S /= tn.norm(S)
         
@@ -164,7 +192,10 @@ def shift_orthogonal_center_to_the_left(nodes,
 
 
 def split_node_full(node, left_edges, right_edges, compress_params):
-    # Switch to numpy backend (if numpy is not being used) so that SVD can
+    # Perform a SVD on node. See documentation for sbc.compress.Params for
+    # more info/context.
+    
+    # Switch to numpy backend [if numpy is not being used] so that SVD can
     # be performed on CPUs as it is currently faster than on GPUs.
     original_backend_name = node.backend.name
     if original_backend_name != "numpy":
@@ -191,6 +222,7 @@ def split_node_full(node, left_edges, right_edges, compress_params):
         U[-1] | S[0]  # Break edge between U and S nodes.
         S[-1] | V_dagger[0]  # Break edge between S and V_dagger.
     except np.linalg.LinAlgError:
+        # Call the slower but more stable SVD subroutine if the default fails.
         U, S, V_dagger, discarded_singular_values = \
             split_node_full_backup(**kwargs)
 
@@ -219,6 +251,10 @@ def split_node_full_backup(node,
                            right_edges,
                            max_singular_values,
                            max_truncation_err):
+    # Perform a SVD on node. See documentation for sbc.compress.Params for
+    # more info/context. This SVD routine is more stable albeit slower than
+    # the implementation of Google's tensornetwork library.
+    
     num_left_edges = len(left_edges)
     num_right_edges = len(right_edges)
     node.reorder_edges(left_edges+right_edges)
@@ -265,11 +301,28 @@ def split_node_full_backup(node,
 
 
 def Lambda_Theta_form(mps_nodes):
-    # Used for infinite chains.
-    left_to_right_sweep(nodes=mps_nodes,
-                        compress_params=None,
-                        is_infinite=False,  # Avoid doing the extra shift.
-                        normalize=False)
+    # [2]: arXiv.0804.2509
+    
+    # This function is used to bring a set of MPS nodes of a unit cell,
+    # representing an infinite system, to what we will refer to as the
+    # 'Lambda-Theta' form. If the 'Vidal' form [see e.g. Eq. (7) of [2]] of the
+    # unit cell can be expressed as:
+    #
+    #     Lambda_0 Gamma_0 Lambda_1 Gamma_1 ... Lambda_{L-1} Gamma_{L-1},
+    #
+    # where L is the unit cell size, then the corresponding 'Lambda-Theta' form
+    # is:
+    #
+    #     Lambda Theta,
+    #
+    # where
+    #
+    #     Lambda = Lambda_0,
+    #     Theta = Gamma_0 Lambda_1 Gamma_1 ... Lambda_{L-1} Gamma_{L-1}.
+    
+    # This SVD is not strictly necessary, however numerical tests suggests it
+    # improves overall stability.
+    left_to_right_sweep(nodes=mps_nodes, compress_params=None, normalize=False)
 
     L = len(mps_nodes)
     node = mps_nodes[-1]
@@ -280,6 +333,8 @@ def Lambda_Theta_form(mps_nodes):
 
     Theta_nodes = []
 
+    # Keep in mind that infinite chains with unit cells are effectively periodic
+    # systems, hence why the MPS nodes can be moved around in a cyclic fashion.
     if L == 1:
         Lambda = S
         Theta_node = tn.ncon([V_dagger, U], [(-1, 1), (1, -2, -3)])

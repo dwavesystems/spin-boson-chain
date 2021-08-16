@@ -14,7 +14,7 @@ This script includes the following steps:
 2. Construct the spin-boson model.
     a) Define all system model parameters.
     b) Define all bath model components.
-3. Set the truncation parameters for the matrix product states (MPS's) 
+3. Set the compression parameters for the matrix product states (MPS's) 
    representing the system state and the local influence functionals.
 4. Set parameters related to the tensor network algorithm.
 5. Construct a MPS representing the initial state of the spin system.
@@ -80,8 +80,8 @@ from sbc import system
 # For specifying the bath model components.
 from sbc import bath
 
-# For specifying how to truncate Schmidt spectra in MPS compression.
-from sbc import trunc
+# For specifying how to compress MPS's.
+from sbc import compress
 
 # For specifying parameters related to the tensor network algorithm.
 from sbc import alg
@@ -164,7 +164,7 @@ A_z_0T_cmpnt = bath.SpectralDensityCmpnt0T(func_form=A_z_0T_cmpnt_func_form,
 
 A_z_0T = bath.SpectralDensity0T(cmpnts=[A_z_0T_cmpnt])
 
-bath_model = bath.Model(L=1,  # Number of spins.
+bath_model = bath.Model(L=system_model.L,  # Number of spins.
                         beta=25,  # Inverse temperature beta=1/(kB*T).
                         memory=2.5,  # The system's memory.
                         z_coupling_energy_scales=[1.0],  # Constant coupling.
@@ -172,26 +172,29 @@ bath_model = bath.Model(L=1,  # Number of spins.
 
 
 
-# Next, we set the truncation parameters for the matrix product states (MPS's)
-# representing the system state and the local path functionals. In short,
-# increasing and decreasing the parameters `max_num_singular_values` and
-# `max_trunc_err` respectively translate to MPS's with larger bond dimensions
-# `chi` which generally translates to a decrease in numerical errors in the
-# simulation. However, since the most computationally intensive parts of the
-# simulation scale like `chi^3`, increasing and decreasing the parameters
-# `max_num_singular_values` and `max_trunc_err` respectively lead to longer
-# runtimes.
-influence_trunc_params = trunc.Params(max_num_singular_values=64,
-                                      max_trunc_err=1.e-14)
-state_trunc_params = trunc.Params(max_num_singular_values=1)  # b/c single spin.
+# Next, we set the compression parameters for the matrix product states (MPS's)
+# that span time as well as those that span space. 'Temporal' MPS's are used to
+# represent influence functionals/paths, where 'spatial' MPS's are used to
+# represent the system's state. See the documentation for the class
+# sbc.compress.Params for a description of each available compression parameter.
+# Note that since this is a single spin system no compression is performed on
+# the spatial MPS's as they are simply scalars: there are no spatial bonds in
+# the MPS sense.
+temporal_compress_params = compress.Params(method="zip-up",
+                                           max_num_singular_values=64,
+                                           max_trunc_err=1.e-14,
+                                           svd_rel_tol=1.e-12,
+                                           max_num_var_sweeps=2,
+                                           var_rel_tol=1e-8)
+spatial_compress_params = compress.Params()
 
 
 
 # Next, we set the parameters relating to the tensor network algorithm used to
 # simulate the dynamics.
 alg_params = alg.Params(dt=0.1,
-                        influence_trunc_params=influence_trunc_params,
-                        state_trunc_params=state_trunc_params)
+                        temporal_compress_params=temporal_compress_params,
+                        spatial_compress_params=spatial_compress_params)
 
 
 
@@ -207,9 +210,9 @@ alg_params = alg.Params(dt=0.1,
 # state, and `q=1` corresponds to a `sz=-1` state. The following code specifies
 # the initial state.
 tensor = np.zeros([1, 2, 1], dtype=np.complex128)
-tensor[0, 0, 0] = 1  # Set sz=1 amplitude to 1; sz=-1 amplitude set to 0 above.
+tensor[0, 0, 0] = 1  # Set sz=1 amplitude to 1.
 node = tn.Node(tensor)
-initial_state_nodes = [node]  # Recall we a constructing a 1-qubit spin system.
+initial_state_nodes = [node]*system_model.L
 
 
 
@@ -242,7 +245,7 @@ report_params = ReportParams(wish_list=wish_list, output_dir=output_dir)
 
 # Finally, we run the simulation and periodically report to files.
 t = 0.  # Initial time.
-t_f = 5.  # Final time.
+t_f = 5.0  # Final time.
 
 print("Report at t = {}".format(t))
 report(system_state, report_params)

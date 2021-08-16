@@ -63,11 +63,6 @@ system, namely the :math:`h_{z; r}(t)`, :math:`h_{x; r}(t)`, and
 ## Load libraries/packages/modules ##
 #####################################
 
-# For issuing warnings to users.
-import warnings
-
-
-
 # Import class representing time-dependent scalar model parameters.
 import sbc.scalar
 
@@ -82,7 +77,7 @@ __copyright__ = "Copyright 2021"
 __credits__ = ["Matthew Fitzpatrick"]
 __maintainer__ = "Matthew Fitzpatrick"
 __email__ = "mfitzpatrick@dwavesys.com"
-__status__ = "Non-Production"
+__status__ = "Development"
 
 
 

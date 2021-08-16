@@ -37,7 +37,7 @@ __copyright__ = "Copyright 2021"
 __credits__ = ["Matthew Fitzpatrick"]
 __maintainer__ = "Matthew Fitzpatrick"
 __email__ = "mfitzpatrick@dwavesys.com"
-__status__ = "Non-Production"
+__status__ = "Development"
 
 
 
@@ -65,12 +65,17 @@ class Eta():
 
 
     def eval(self, l1, l2, n):
+        # DM: Detailed manuscript.
+
+        # quad_weights is given by Eq. (590) of DM; self.W_vars is given by
+        # Eq. (637)-(640) of DM.
         quad_weights = [0.25, 0.25] + [0.50]*(2*n-2) + [0.25, 0.25]
         self.W_vars = [self.dt * sum(quad_weights[l2:(l1-1)+1]),
                        self.dt * sum(quad_weights[l2+1:l1+1]),
                        self.dt * sum(quad_weights[l2+1:(l1-1)+1]),
                        self.dt * sum(quad_weights[l2:l1+1])]
 
+        # Evaluating Eq. (654) of DM.
         result = 0.0j
         for A_v_r_T_cmpnt in self.A_v_r_T.cmpnts:
             self.update_integration_pts(A_v_r_T_cmpnt)
@@ -83,13 +88,19 @@ class Eta():
 
 
     def update_integration_pts(self, A_v_r_T_cmpnt):
+        # DM: Detailed manuscript.
+
+        # W_var_max is given by Eq. (650) of DM.
         W_var_max = max(self.W_vars)
         uv_cutoff = A_v_r_T_cmpnt.limit_0T.uv_cutoff
         ir_cutoff = A_v_r_T_cmpnt.limit_0T.ir_cutoff
         beta = A_v_r_T_cmpnt.beta
 
+        # pt_A and pt_B are given by Eqs. (665) and (666) of DM respectively.
         pt_A = -np.pi / W_var_max if W_var_max != 0 else -np.inf
         pt_B = -25 / beta
+
+        # pts is given by Eqs. (659)-(664) of DM respectively.
         pts = [0.0] * 10
         pts[0] = -uv_cutoff
         pts[2] = min(max(-uv_cutoff, pt_A), -ir_cutoff)
@@ -108,31 +119,45 @@ class Eta():
 
 
     def eval_real_cmpnt(self, A_v_r_T_cmpnt, a):
+        # DM: Detailed manuscript.
+        
         if a in (2, 3, 5, 6):
+            # Evaluate Eq. (655) of DM for given a.
             result = self.eval_integral_type_R1(A_v_r_T_cmpnt, a)
         else:
+            # Evaluate Eq. (657) of DM for given a.
             result = 0.0
-            for u in range(0, 4):
-                result += self.eval_integral_type_R2(A_v_r_T_cmpnt, a, u)
+            for j in range(0, 4):
+                # Evaluate Eq. (671) of DM for given a and j.
+                result += self.eval_integral_type_R2(A_v_r_T_cmpnt, a, j)
 
         return result
 
 
 
     def eval_imag_cmpnt(self, l1, l2, A_v_r_T_cmpnt, a):
+        # DM: Detailed manuscript.
+        
         if a in (2, 3, 5, 6):
+            # Evaluate Eq. (656) of DM for given a.
             result = self.eval_integral_type_I1(l1, l2, A_v_r_T_cmpnt, a)
         else:
+            # Evaluate Eq. (658) of DM for given a.
             result = 0.0
-            for u in range(0, 4):
+            for j in range(0, 4):
+                # Evaluate Eq. (672) of DM for given a and j.
                 result += self.eval_integral_type_I2(l1, l2,
-                                                     A_v_r_T_cmpnt, a, u)
+                                                     A_v_r_T_cmpnt, a, j)
 
         return result
 
 
 
     def eval_integral_type_R1(self, A_v_r_T_cmpnt, a):
+        # DM: Detailed manuscript.
+
+        # W_vars is given by Eqs. (637)-(640) of DM; W_var_max is given by
+        # Eq. (650) of DM.
         W_vars = self.W_vars
         W_var_max = max(W_vars)
         pi = np.pi
@@ -143,15 +168,18 @@ class Eta():
                        + W_vars[1]**2 * (omega*W_vars[1])**(2*m-2)
                        - W_vars[2]**2 * (omega*W_vars[2])**(2*m-2)
                        - W_vars[3]**2 * (omega*W_vars[3])**(2*m-2)))
-        
+
         def F(omega):
             if abs(omega * W_var_max) < 1.0e-3:
+                # Evaluate Eq. (667) of DM.
                 return sum([summand(omega, m) for m in range(1, 5)])
             else:
+                # Evaluate Eq. (668) of DM.
                 return ((np.cos(W_vars[0]*omega) + np.cos(W_vars[1]*omega)
                          - np.cos(W_vars[2]*omega) - np.cos(W_vars[3]*omega))
                         / omega / omega)
 
+        # Evaluate Eq. (655) of DM; see also paragraph above Eq. (673) of DM.
         pt1 = self.integration_pts[a]
         pt2 = self.integration_pts[a+1]
         integrand = lambda omega: (A_v_r_T_cmpnt._eval(omega)
@@ -163,11 +191,15 @@ class Eta():
             
 
 
-    def eval_integral_type_R2(self, A_v_r_T_cmpnt, a, u):
-        W_var = self.W_vars[u]
-        sign_prefactor = (-1)**(u//2)
+    def eval_integral_type_R2(self, A_v_r_T_cmpnt, a, j):
+        # DM: Detailed manuscript.
+
+        # W_vars is given by Eqs. (637)-(640) of DM.
+        W_var = self.W_vars[j]
+        sign_prefactor = (-1)**(j//2)
         pi = np.pi
-        
+
+        # Evaluate Eq. (671) of DM; see also paragraph above Eq. (673) of DM.
         pt1 = self.integration_pts[a]
         pt2 = self.integration_pts[a+1]
         integrand = lambda omega: (sign_prefactor * A_v_r_T_cmpnt._eval(omega)
@@ -184,10 +216,15 @@ class Eta():
 
 
     def eval_integral_type_I1(self, l1, l2, A_v_r_T_cmpnt, a):
+        # DM: Detailed manuscript.
+        
         if (l1 == l2):
+            # See Eqs. (656), (669) and (670) of DM.
             result = 0.0
             return result
-        
+
+        # W_vars is given by Eqs. (637)-(640) of DM; W_var_max is given by
+        # Eq. (650) of DM.
         W_vars = self.W_vars
         W_var_max = max(W_vars)
         pi = np.pi
@@ -201,12 +238,15 @@ class Eta():
         
         def F(omega):
             if abs(omega * W_var_max) < 1.0e-3:
+                # Evaluate Eq. (669) of DM.
                 return -sum([summand(omega, m) for m in range(1, 5)])
             else:
+                # Evaluate Eq. (670) of DM.
                 return ((-np.sin(W_vars[0]*omega) - np.sin(W_vars[1]*omega)
                          + np.sin(W_vars[2]*omega) + np.sin(W_vars[3]*omega))
                         / omega / omega)
 
+        # Evaluate Eq. (656) of DM; see also paragraph above Eq. (673) of DM.
         pt1 = self.integration_pts[a]
         pt2 = self.integration_pts[a+1]
         integrand = lambda omega: (A_v_r_T_cmpnt._eval(omega)
@@ -218,16 +258,20 @@ class Eta():
             
 
 
-    def eval_integral_type_I2(self, l1, l2, A_v_r_T_cmpnt, a, u):
-        W_var = self.W_vars[u]
+    def eval_integral_type_I2(self, l1, l2, A_v_r_T_cmpnt, a, j):
+        # DM: Detailed manuscript.
+
+        # W_vars is given by Eqs. (637)-(640) of DM.
+        W_var = self.W_vars[j]
         
         if (l1 == l2) or (W_var == 0):
             result = 0.0
             return result
         
-        sign_prefactor = -(-1)**(u//2)
+        sign_prefactor = -(-1)**(j//2)
         pi = np.pi
 
+        # Evaluate Eq. (672) of DM; see also paragraph above Eq. (673) of DM.
         pt1 = self.integration_pts[a]
         pt2 = self.integration_pts[a+1]
         integrand = lambda omega: (sign_prefactor * A_v_r_T_cmpnt._eval(omega)

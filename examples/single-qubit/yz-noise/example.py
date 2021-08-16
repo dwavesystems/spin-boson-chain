@@ -21,7 +21,7 @@ This script includes the following steps:
 2. Construct the spin-boson model.
     a) Define all system model parameters.
     b) Define all bath model components.
-3. Set the truncation parameters for the matrix product states (MPS's) 
+3. Set the compression parameters for the matrix product states (MPS's) 
    representing the system state and the local influence functionals.
 4. Set parameters related to the tensor network algorithm.
 5. Construct a MPS representing the initial state of the spin system.
@@ -91,8 +91,8 @@ from sbc import system
 # For specifying the bath model components.
 from sbc import bath
 
-# For specifying how to truncate Schmidt spectra in MPS compression.
-from sbc import trunc
+# For specifying how to compress MPS's.
+from sbc import compress
 
 # For specifying parameters related to the tensor network algorithm.
 from sbc import alg
@@ -178,7 +178,7 @@ def h_z_func_form(t, t_a, h_0, B):
     return B(s) * h_0 / 2
 
 h_0 = -0.3
-t_a = 1
+t_a = 1.0
 h_x_func_kwargs = {"t_a": t_a, "A": A}
 h_z_func_kwargs = {"t_a": t_a, "h_0": h_0, "B": B}
 
@@ -199,7 +199,7 @@ system_model = system.Model(x_fields=[h_x], z_fields=[h_z])
 # environment dependent on the energy scales A(s) and B(s). The following code
 # specifies the bath model components as described above.
 
-# Constructs zero-temperature spectral density functions.
+# Construct zero-temperature spectral density functions.
 def A_y_0T_func_form(omega, mu_y, omega_UV_y, beta):
     return mu_y * np.tanh(beta * omega) * np.exp(-omega / omega_UV_y)
 
@@ -259,9 +259,9 @@ def E_z_lambda_func_form(t, t_a):
 E_z_lambda_func_kwargs = {"t_a": t_a}
 E_z_lambda = scalar.Scalar(E_z_lambda_func_form, E_z_lambda_func_kwargs)
 
-bath_model = bath.Model(L=1,  # Number of spins.
+bath_model = bath.Model(L=system_model.L,  # Number of spins.
                         beta=beta,  # Inverse temperature beta=1/(kB*T).
-                        memory=t_a,  # The system's memory.
+                        memory=t_a,  # 1/f noise requires memory of all history.
                         y_coupling_energy_scales=[E_y_lambda],
                         y_spectral_densities_0T=[A_y_0T],
                         z_coupling_energy_scales=[E_z_lambda],
@@ -269,26 +269,30 @@ bath_model = bath.Model(L=1,  # Number of spins.
 
 
 
-# Next, we set the truncation parameters for the matrix product states (MPS's)
-# representing the system state and the local path functionals. In short,
-# increasing and decreasing the parameters `max_num_singular_values` and
-# `max_trunc_err` respectively translate to MPS's with larger bond dimensions
-# `chi` which generally translates to a decrease in numerical errors in the
-# simulation. However, since the most computationally intensive parts of the
-# simulation scale like `chi^3`, increasing and decreasing the parameters
-# `max_num_singular_values` and `max_trunc_err` respectively lead to longer
-# runtimes.
-influence_trunc_params = trunc.Params(max_num_singular_values=64,
-                                      max_trunc_err=1.e-14)
-state_trunc_params = trunc.Params(max_num_singular_values=1)  # b/c single spin.
+
+# Next, we set the compression parameters for the matrix product states (MPS's)
+# that span time as well as those that span space. 'Temporal' MPS's are used to
+# represent influence functionals/paths, where 'spatial' MPS's are used to
+# represent the system's state. See the documentation for the class
+# sbc.compress.Params for a description of each available compression parameter.
+# Note that since this is a single spin system no compression is performed on
+# the spatial MPS's as they are simply scalars: there are no spatial bonds in
+# the MPS sense.
+temporal_compress_params = compress.Params(method="zip-up",
+                                           max_num_singular_values=64,
+                                           max_trunc_err=1.e-14,
+                                           svd_rel_tol=1.e-12,
+                                           max_num_var_sweeps=2,
+                                           var_rel_tol=1e-8)
+spatial_compress_params = compress.Params()
 
 
 
 # Next, we set the parameters relating to the tensor network algorithm used to
 # simulate the dynamics.
 alg_params = alg.Params(dt=0.1,
-                        influence_trunc_params=influence_trunc_params,
-                        state_trunc_params=state_trunc_params)
+                        temporal_compress_params=temporal_compress_params,
+                        spatial_compress_params=spatial_compress_params)
 
 
 
