@@ -51,7 +51,7 @@ This script includes the following steps:
 import os
 
 # To check whether the quspin and matplotlib libraries have been installed.
-import importlib
+from importlib import util
 
 # To terminate the script before reaching its end.
 import sys
@@ -91,11 +91,11 @@ import numpy as np
 import tensornetwork as tn
 
 # Import the quspin library if it exists.
-if importlib.util.find_spec("quspin") is not None:
+if util.find_spec("quspin") is not None:
     import quspin
 
 # Import the matplotlib library if it exists.
-if importlib.util.find_spec("matplotlib") is not None:
+if util.find_spec("matplotlib") is not None:
     import matplotlib as mpl
     import matplotlib.pyplot as plt
 
@@ -344,7 +344,7 @@ print("Simulation has finished successfully: "
 
 # Rerun simulation using exact diagonalization if ``quspin`` has been
 # installed.
-if importlib.util.find_spec("quspin") is None:
+if util.find_spec("quspin") is None:
     print()
     print("``quspin`` has not been installed, therefore the simulation will "
           "not be reran using exact diagonalization (via ``quspin``). See "
@@ -532,7 +532,7 @@ print("Simulation has finished successfully: "
 
 # Generate plots comparing the results obtained by ``spinbosonchain`` and
 # ``quspin``.
-if importlib.util.find_spec("matplotlib") is None:
+if util.find_spec("matplotlib") is None:
     print()
     print("``matplotlib`` has not been installed, therefore comparison plots "
           "will not be generated. See file "

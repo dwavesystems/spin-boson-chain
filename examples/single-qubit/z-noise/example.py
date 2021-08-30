@@ -47,8 +47,8 @@ This script includes the following steps:
 # To determine the current working directory and to set # threads to use.
 import os
 
-# To check whether the quspin library has been installed.
-import importlib
+# To check whether the matplotlib library has been installed.
+from importlib import util
 
 # To terminate the script before reaching its end.
 import sys
@@ -87,12 +87,8 @@ import numpy as np
 # For creating tensor networks and performing contractions.
 import tensornetwork as tn
 
-# Import the quspin library if it exists.
-if importlib.util.find_spec("quspin") is not None:
-    import quspin
-
 # Import the matplotlib library if it exists.
-if importlib.util.find_spec("matplotlib") is not None:
+if util.find_spec("matplotlib") is not None:
     import matplotlib as mpl
     import matplotlib.pyplot as plt
 
@@ -267,7 +263,7 @@ print("Simulation has finished successfully: "
 
 # Generate plots comparing the results obtained by ``spinbosonchain`` and
 # that obtained by Albash and Lidar (i.e. the expected result).
-if importlib.util.find_spec("matplotlib") is None:
+if util.find_spec("matplotlib") is None:
     print()
     print("``matplotlib`` has not been installed, therefore comparison plots "
           "will not be generated. See file "

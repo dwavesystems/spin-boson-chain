@@ -3,7 +3,6 @@ channels:
   - default
 dependencies:
   - python
-  - nomkl
   - numpy
   - scipy
   - pip

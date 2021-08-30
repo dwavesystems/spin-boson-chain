@@ -28,10 +28,10 @@ This will create a new virtual environment named ``sbc`` with the aforementioned
 minimal requirements installed, and activate the new virtual environment. It is
 recommended that you install the requirements using the above commands if
 performing operations on Intel CPUs. Otherwise, it may be better to install the
-minimal requirements with "no-MKL" versions of ``numpy`` and ``scipy``, which
+minimal requirements with the default versions of ``numpy`` and ``scipy``, which
 can be done by issuing the following commands::
 
-    conda env create -f environment-nomkl.yml
+    conda env create -f environment.yml
     conda activate sbc
 
 Once you have installed the required packages, you can install
@@ -82,8 +82,8 @@ BEFORE DECIDING TO RUN THE COMMANDS BELOW)::
 
 It is recommended that you install the requirements using the above command if
 performing operations on Intel CPUs. Otherwise, it may be better to install the
-minimal requirements with "no-MKL" versions of ``numpy`` and ``scipy``. In this
-case, do not run the above command.
+minimal requirements with the default versions of ``numpy`` and ``scipy``. In
+this case, do not run the above command.
 
 Next, to install ``spinbosonchain``, issue the following command::
 
@@ -205,9 +205,9 @@ browser::
 
     firefox ./_build/html/index.html &>/dev/null &
 
-If ``spinbosonchain`` has been updated, the documentation has most likely changed
-as well. To update the documentation, first remove the ``reference`` directory
-inside ``docs``::
+If ``spinbosonchain`` has been updated, the documentation has most likely
+changed as well. To update the documentation, first remove the ``reference``
+directory inside ``docs``::
 
     rm -r reference
 

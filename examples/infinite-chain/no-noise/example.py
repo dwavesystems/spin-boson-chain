@@ -56,7 +56,7 @@ This script includes the following steps:
 import os
 
 # To check whether the tenpy and matplotlib libraries have been installed.
-import importlib
+from importlib import util
 
 # To terminate the script before reaching its end.
 import sys
@@ -99,13 +99,13 @@ import numpy as np
 import tensornetwork as tn
 
 # Import the tenpy library if it exists.
-if importlib.util.find_spec("tenpy") is not None:
+if util.find_spec("tenpy") is not None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         import tenpy
 
 # Import the matplotlib library if it exists.
-if importlib.util.find_spec("matplotlib") is not None:
+if util.find_spec("matplotlib") is not None:
     import matplotlib as mpl
     import matplotlib.pyplot as plt
 
@@ -317,7 +317,7 @@ print("Simulation has finished successfully: "
 
 
 # Rerun simulation using TEBD if ``tenpy`` has been installed.
-if importlib.util.find_spec("tenpy") is None:
+if util.find_spec("tenpy") is None:
     print()
     print("``tenpy`` has not been installed, therefore the simulation will not "
           "be reran using TEBD (via ``tenpy``). See file "
@@ -443,7 +443,7 @@ while t < abs(t_a+0.5*dt):
 
 # Generate plots comparing the results obtained by ``spinbosonchain`` and
 # ``tenpy``.
-if importlib.util.find_spec("matplotlib") is None:
+if util.find_spec("matplotlib") is None:
     print()
     print("``matplotlib`` has not been installed, therefore comparison plots "
           "will not be generated. See file "

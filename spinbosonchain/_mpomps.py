@@ -902,7 +902,10 @@ def calc_X_and_X_inv(V_L):
     if V_L.backend.name != "numpy":
         sbc._backend.tf_to_np(V_L)
 
-    D, W = scipy.linalg.eigh(V_L.tensor, driver='ev')
+    try:
+        D, W = scipy.linalg.eigh(V_L.tensor, driver='ev')
+    except TypeError as err:  # Occurs with some versions scipy.
+        D, W = scipy.linalg.eigh(V_L.tensor)
     D = np.abs(D)
     tol = 1.0e-14
     D[D<tol] = tol
@@ -928,7 +931,10 @@ def calc_Y_and_Y_inv(V_R):
     if V_R.backend.name != "numpy":
         sbc._backend.tf_to_np(V_R)
 
-    D, W = scipy.linalg.eigh(V_R.tensor, driver='ev')
+    try:
+        D, W = scipy.linalg.eigh(V_R.tensor, driver='ev')
+    except TypeError as err:  # Occurs with some versions scipy.
+        D, W = scipy.linalg.eigh(V_R.tensor)
     D = np.abs(D)
     tol = 1.0e-14
     D[D<tol] = tol
