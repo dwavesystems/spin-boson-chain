@@ -1,12 +1,12 @@
 .. _reference_guide_sec:
 
-sbc reference guide
-======================
+spinbosonchain reference guide
+==============================
 
-.. automodule:: sbc
+.. automodule:: spinbosonchain
     :show-inheritance:
 
-.. currentmodule:: sbc
+.. currentmodule:: spinbosonchain
 
 .. rubric:: Submodules
 

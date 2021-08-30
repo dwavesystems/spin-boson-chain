@@ -1,3 +1,0 @@
-The following people are part of the sbc developer team:
-
-Matthew Fitzpatrick    (e-mail: mfitzpatrick@dwavesys.com)

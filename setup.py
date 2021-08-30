@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""The setup script for the ``sbc`` library.
+"""The setup script for the ``spinbosonchain`` library.
 """
 
 
@@ -23,7 +23,7 @@ import subprocess
 # To check whether a package has been installed already.
 from pkg_resources import DistributionNotFound, get_distribution
 
-# For setting up sbc package.
+# For setting up spinbosonchain package.
 from setuptools import setup, find_packages, Command
 
 
@@ -32,11 +32,11 @@ from setuptools import setup, find_packages, Command
 ## Authorship information ##
 ############################
 
-__author__     = "Matthew Fitzpatrick"
+__author__     = "D-Wave Systems Inc."
 __copyright__  = "Copyright 2021"
 __credits__    = ["Matthew Fitzpatrick"]
-__maintainer__ = "Matthew Fitzpatrick"
-__email__      = "mfitzpatrick@dwavesys.com"
+__maintainer__ = "D-Wave Systems Inc."
+__email__      = "support@dwavesys.com"
 __status__     = "Development"
 
 
@@ -50,7 +50,7 @@ minimum_minor_python_revision = 0
 minimum_python_version = (major_python_revision, minimum_minor_python_revision)
 
 if not sys.version_info >= minimum_python_version:
-    print("ERROR: sbc requires Python version >= ",
+    print("ERROR: spinbosonchain requires Python version >= ",
           major_python_revision, ".", minimum_minor_python_revision,
           ", the script got called by:\n", sys.version, ".", sep="")
     sys.exit(1)
@@ -67,7 +67,7 @@ VERSION = '{0:d}.{1:d}.{2:d}'.format(MAJOR, MINOR, MICRO)
 
 
 def get_git_revision():
-    """Get revision hash of ``sbc`` from git.
+    """Get revision hash of ``spinbosonchain`` from git.
 
     Parameters
     ----------
@@ -75,7 +75,7 @@ def get_git_revision():
     Returns
     -------
     revision : `str`
-        Git revision hash of ``sbc``.
+        Git revision hash of ``spinbosonchain``.
     """
     if not os.path.exists('.git'):
         revision = "unknown"
@@ -98,7 +98,7 @@ def get_git_revision():
 
 
 def get_version_info():
-    """Get version of ``sbc`` from git.
+    """Get version of ``spinbosonchain`` from git.
 
     Parameters
     ----------
@@ -106,7 +106,7 @@ def get_version_info():
     Returns
     -------
     full_version : `str`
-        Full version of ``sbc``.
+        Full version of ``spinbosonchain``.
     """
     full_version = VERSION
     git_revision = get_git_revision()
@@ -119,34 +119,34 @@ def get_version_info():
 
 def write__version_py(full_version,
                       git_revision,
-                      filename="sbc/_version.py"):
+                      filename="spinbosonchain/_version.py"):
     """Write the version during compilation to file.
 
     Parameters
     ----------
     full_version : `str`
-        Full of version of ``sbc``.
+        Full of version of ``spinbosonchain``.
     git_revision : `str`
-        Git revision hash of ``sbc``.
+        Git revision hash of ``spinbosonchain``.
     filename : `str`, optional
         Filename of file containing information about the version of 
-        ``sbc`` currently being compiled.
+        ``spinbosonchain`` currently being compiled.
 
     Returns
     -------
     """
     content = ("#!/usr/bin/env python\n"
                + "# This file was generated from setup.py. It contains "
-               + "information about the\n# version of sbc currently "
+               + "information about the\n# version of spinbosonchain currently "
                + "installed on machine.\n\n\n\n"
                + "############################\n"
                + "## Authorship information ##\n"
                + "############################\n\n"
-               + "__author__     = \"Matthew Fitzpatrick\"\n"
+               + "__author__     = \"D-Wave Systems Inc.\"\n"
                + "__copyright__  = \"Copyright 2021\"\n"
                + "__credits__    = [\"Matthew Fitzpatrick\"]\n"
-               + "__maintainer__ = \"Matthew Fitzpatrick\"\n"
-               + "__email__      = \"mfitzpatrick@dwavesys.com\"\n"
+               + "__maintainer__ = \"D-Wave Systems Inc.\"\n"
+               + "__email__      = \"support@dwavesys.com\"\n"
                + "__status__     = \"Development\"\n\n\n\n"
                + "#########################\n"
                + "## Version information ##\n"
@@ -266,12 +266,12 @@ class CleanCommand(Command):
         pass
     def run(self):
         os.system("rm -vrf ./build ./dist ./*.pyc "
-                  "./*.tgz ./*.egg-info ./sbc/_version.py")
+                  "./*.tgz ./*.egg-info ./spinbosonchain/_version.py")
 
 
 
 def setup_package():
-    """Setup ``sbc`` package.
+    """Setup ``spinbosonchain`` package.
 
     Parameters
     ----------
@@ -293,10 +293,10 @@ def setup_package():
     description = \
         ("For simulating dynamics of generalized 1D spin-boson model.")
 
-    setup(name="sbc",
+    setup(name="spinbosonchain",
           description=description,
-          author="Matthew Fitzpatrick",
-          author_email="mfitzpatrick@dwavesys.com",
+          author="D-Wave Systems Inc.",
+          author_email="support@dwavesys.com",
           packages=find_packages(),
           version=full_version,
           setup_requires=setup_requires,

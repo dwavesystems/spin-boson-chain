@@ -19,11 +19,11 @@ import sys
 
 
 
-# Check to see whether sbc can be imported.
+# Check to see whether spinbosonchain can be imported.
 try:
-    import sbc.version
+    import spinbosonchain.version
 except:
-    print("ERROR: can't import sbc.")
+    print("ERROR: can't import spinbosonchain.")
     sys.exit(1)
 
 
@@ -33,9 +33,9 @@ except:
 
 # -- Project information -----------------------------------------------------
 
-project = 'sbc'
-copyright = '2021, Matthew Fitzpatrick'
-author = 'Matthew Fitzpatrick'
+project = 'spinbosonchain'
+copyright = '2021, D-Wave Systems Inc.'
+author = 'D-Wave Systems Inc.'
 
 
 
@@ -95,9 +95,9 @@ master_doc = 'index'
 # built documents.
 
 # The short X.Y version.
-version = sbc.__version__
+version = spinbosonchain.__version__
 # The full version, including alpha/beta/rc tags.
-release = sbc.__version__
+release = spinbosonchain.__version__
 
 
 
@@ -165,7 +165,7 @@ html_sidebars = {'**': ['localtoc.html',
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'sbcdoc'
+htmlhelp_basename = 'spinbosonchaindoc'
 
 
 
@@ -184,8 +184,8 @@ latex_elements = {}
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [(master_doc,
-                    'sbc.tex',
-                    'sbc Documentation',
+                    'spinbosonchain.tex',
+                    'spinbosonchain Documentation',
                     author,
                     'manual'),]
 
@@ -196,8 +196,8 @@ latex_documents = [(master_doc,
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [(master_doc,
-              'sbc',
-              'sbc Documentation',
+              'spinbosonchain',
+              'spinbosonchain Documentation',
               [author],
               1)]
 
@@ -209,10 +209,10 @@ man_pages = [(master_doc,
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [('index',
-                      'sbc',
-                      'sbc Documentation',
+                      'spinbosonchain',
+                      'spinbosonchain Documentation',
                       author,
-                      'sbc',
+                      'spinbosonchain',
                       'For simulating open-system dynamics of quantum Ising chains.',
                       'Miscellaneous'),]
 

@@ -6,7 +6,10 @@ __pycache__/
 .ipynb_checkpoints/
 docs/_build/
 docs/reference/
-output*/
+sbc-output/
+quspin-output/
+tenpy-output/
+comparison-plot-output/
 
 # Ignore select files
 ostfic/_version.py

@@ -3,18 +3,18 @@
 
 In this example, we implement a simulation of the dynamics of a single qubit
 subject to time-dependent transverse and longitudinal fields, and environmental
-noise that is coupled to the both the :math:`y`- and :math:`z`-components of the
-qubit's spin. Each spectral density of noise comprises of a single Dirac
-delta-like peak. The system-environment coupling energy scale is also
-time-dependent. The simulation tracks
-:math:`\left\langle\hat{\sigma}_{x;r}\left(t\right)\right\rangle`,
+noise that is coupled to the :math:`y`--component of the qubit's spin. The
+spectral density of noise comprises of two Dirac delta-like peak. The
+system-environment coupling energy scale is also time-dependent. The simulation
+tracks :math:`\left\langle\hat{\sigma}_{x;r}\left(t\right)\right\rangle`,
 :math:`\left\langle\hat{\sigma}_{y;r}\left(t\right)\right\rangle`, and
 :math:`\left\langle\hat{\sigma}_{z;r}\left(t\right)\right\rangle`.
 
 This example tests the algorithm implemented in the ``spinbosonchain`` library
 that is used to calculate local influence paths for the case where the system is
-subject to both :math:`y`- and :math:`z` noise, and the system's bath
-correlation time, or "memory", is larger than the total simulation time.
+subject to multi-component noise (in this case with a double-peak spectrum), and
+the system's bath correlation time, or "memory", is larger than the total
+simulation time.
 
 If ``quspin`` has been installed, then the same quantities will also be
 calculated by exact diagonalization for comparison sake. If ``matplotlib`` has
@@ -185,28 +185,21 @@ def delta(omega, omega_0, w):
 def y_coupling_energy_scale_func_form(t, t_a, E_y_r):
     return E_y_r * sqrt_A(t, t_a)
 
-def z_coupling_energy_scale_func_form(t, t_a, E_z_r):
-    return E_z_r * sqrt_B(t, t_a)
-
 def sqrt_A(t, t_a):
     return np.sqrt(A(t, t_a))
 
-def sqrt_B(t, t_a):
-    return np.sqrt(B(t, t_a))
-
-etas = {("y", 0, 0): 4/5, ("z", 0, 0): 1/5}
-mode_frequencies = {("y", 0): 5, ("z", 0): 1}
+etas = {("y", 0, 0): 4/5, ("y", 0, 1): 1/5}
+mode_frequencies = {("y", 0): 5, ("y", 1): 1}
 w = 1e-6
 E_y = (1/2,)
-E_z = (1/2,)
 
-spectral_densities_0T = {"y": [0]*L, "z": [0]*L}
-coupling_energy_scales = {"y": [0]*L, "z": [0]*L}
-for noise_type in ("y", "z"):
+spectral_densities_0T = {"y": [0]*L}
+coupling_energy_scales = {"y": [0]*L}
+for noise_type in ("y",):
     for r in range(L):
         cmpnts = []
         
-        for varsigma in (0,):
+        for varsigma in (0, 1):
             eta = etas[(noise_type, r, varsigma)]
             if eta == 0.0:
                 continue
@@ -225,12 +218,8 @@ for noise_type in ("y", "z"):
         A_v_r_0T = sbc.bath.SpectralDensity0T(cmpnts=cmpnts)
         spectral_densities_0T[noise_type][r] = A_v_r_0T
 
-        if noise_type == "y":
-            func_form = y_coupling_energy_scale_func_form
-            func_kwargs = {"t_a": t_a, "E_y_r": E_y[r]}
-        else:
-            func_form = z_coupling_energy_scale_func_form
-            func_kwargs = {"t_a": t_a, "E_z_r": E_z[r]}
+        func_form = y_coupling_energy_scale_func_form
+        func_kwargs = {"t_a": t_a, "E_y_r": E_y[r]}
             
         coupling_energy_scale = sbc.scalar.Scalar(func_form, func_kwargs)
         coupling_energy_scales[noise_type][r] = coupling_energy_scale
@@ -245,9 +234,7 @@ ctor_kwargs = {"L": L,
                "beta": beta,
                "memory": memory,
                "y_coupling_energy_scales": coupling_energy_scales["y"],
-               "y_spectral_densities_0T": spectral_densities_0T["y"],
-               "z_coupling_energy_scales": coupling_energy_scales["z"],
-               "z_spectral_densities_0T": spectral_densities_0T["z"]}
+               "y_spectral_densities_0T": spectral_densities_0T["y"]}
 bath_model = sbc.bath.Model(**ctor_kwargs)
 
 
@@ -371,28 +358,20 @@ sz_coefficients = [[h[r]/2, r] for r in range(L)]
 number_op_coefficients = []
 sy_creation_op_coefficients = []
 sy_annihilation_op_coefficients = []
-sz_creation_op_coefficients = []
-sz_annihilation_op_coefficients = []
 
 for r in range(L):
-    for noise_type in ("y", "z"):
-        for varsigma in (0,):
+    for noise_type in ("y",):
+        for varsigma in (0, 1):
             eta = etas[(noise_type, r, varsigma)]
             if eta == 0.0:
                 continue
             
             omega_0 = mode_frequencies[(noise_type, varsigma)]
 
-            if noise_type == "y":
-                number_op_coefficients.append([omega_0, 0])
-                elem = [E_y[r]*np.sqrt(eta), r, 0]
-                sy_creation_op_coefficients.append(elem)
-                sy_annihilation_op_coefficients.append(elem)
-            else:
-                number_op_coefficients.append([omega_0, 1])
-                elem = [E_z[r]*np.sqrt(eta), r, 1]
-                sz_creation_op_coefficients.append(elem)
-                sz_annihilation_op_coefficients.append(elem)
+            number_op_coefficients.append([omega_0, varsigma])
+            elem = [E_y[r]*np.sqrt(eta), r, varsigma]
+            sy_creation_op_coefficients.append(elem)
+            sy_annihilation_op_coefficients.append(elem)
 
 func_args = (t_a,)
                 
@@ -408,19 +387,10 @@ sy_annihilation_op_cmpnts = ["y|-",
                              sy_annihilation_op_coefficients,
                              sqrt_A,
                              func_args]
-sz_creation_op_cmpnts = ["z|+",
-                         sz_creation_op_coefficients,
-                         sqrt_B,
-                         func_args]
-sz_annihilation_op_cmpnts = ["z|-",
-                             sz_annihilation_op_coefficients,
-                             sqrt_B,
-                             func_args]
 
 static_list = [number_op_cmpnts]
 dynamic_list = [sx_cmpnts, sz_cmpnts,
-                sy_creation_op_cmpnts, sy_annihilation_op_cmpnts,
-                sz_creation_op_cmpnts, sz_annihilation_op_cmpnts]
+                sy_creation_op_cmpnts, sy_annihilation_op_cmpnts]
 no_checks = {"check_symm": False, "check_pcon": False, "check_herm": False}
 H = quspin.operators.hamiltonian(static_list=static_list,
                                  dynamic_list=dynamic_list,
