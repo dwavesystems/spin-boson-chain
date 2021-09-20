@@ -2,7 +2,6 @@ name: sbc
 channels:
   - default
 dependencies:
-  - python
   - numpy
   - scipy
   - pip
