@@ -277,7 +277,7 @@ temporal_compress_params = sbc.compress.Params(method="zip-up",
                                                max_num_var_sweeps=2,
                                                var_rel_tol=1e-8)
 spatial_compress_params = sbc.compress.Params(method="direct",
-                                              max_num_singular_values=16,
+                                              max_num_singular_values=32,
                                               max_trunc_err=1.e-14,
                                               svd_rel_tol=1.e-12)
 
@@ -378,7 +378,7 @@ if util.find_spec("quspin") is None:
 # First, we need to construct the qubit-QHO basis, where QHO is an abbreviation
 # of 'quantum harmonic oscillator'. Note that ``sps`` in the ``boson_basis_1d``
 # specifies the Hilbert space dimension of the QHO.
-qho_dim = 6
+qho_dim = 8
 qubit_basis = quspin.basis.spin_basis_1d(L=L, S="1/2")
 qho_basis = quspin.basis.boson_basis_1d(L=1, sps=qho_dim)
 qubit_qho_basis = quspin.basis.tensor_basis(qubit_basis, qho_basis)

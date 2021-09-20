@@ -10,7 +10,7 @@ documentation for the attribute
 :attr:`spinbosonchain.state.SystemState.correlation_lengths` for a discussion on
 correlation lengths], :math:`\left\langle
 \hat{\sigma}_{x;0}\left(t\right)\right\rangle`, :math:`\left\langle
-\hat{\sigma}_{y;0}\left(t\right) \hat{\sigma}_{z;1}\left(t\right)\right\rangle`,
+\hat{\sigma}_{z;0}\left(t\right) \hat{\sigma}_{z;1}\left(t\right)\right\rangle`,
 and the probability of measuring :math:`\sigma_{z;r}\left(t\right)=+1` at sites
 :math:`r=0` and :math:`r=1`, where :math:`r=0` is the center spin site of the
 infinite chain. We also show how one can periodically backup the simulation data
@@ -203,7 +203,7 @@ bath_model = sbc.bath.Model(L=L, beta=np.inf, memory=0)
 # performed on the spatial MPS's as they are simply scalars: there are no
 # spatial bonds in the MPS sense.
 temporal_compress_params = sbc.compress.Params(method="zip-up",
-                                               max_num_singular_values=16,
+                                               max_num_singular_values=4,
                                                max_trunc_err=1.e-14,
                                                svd_rel_tol=1.e-12,
                                                max_num_var_sweeps=2,
@@ -272,7 +272,7 @@ else:
 # :class:`spinbosonchain.report.WishList` for more details on other quantities
 # that can be tracked.
 wish_list = sbc.report.WishList(ev_of_single_site_spin_ops=['sx'],
-                                ev_of_nn_two_site_spin_ops=[('sy', 'sz')],
+                                ev_of_nn_two_site_spin_ops=[('sz', 'sz')],
                                 spin_config_probs=[[1, 1]],
                                 ev_of_energy=True,
                                 correlation_lengths=3)
@@ -400,7 +400,7 @@ with open(tenpy_output_dir + "/sx.csv", 'w', 1) as file_obj:
     np.savetxt(file_obj, header, fmt="%-20s", delimiter=";")
 
 header = np.array([['t'] + ['EV at bond #'+str(i) for i in range(L)]])
-with open(tenpy_output_dir + "/sy|sz.csv", 'w', 1) as file_obj:
+with open(tenpy_output_dir + "/sz|sz.csv", 'w', 1) as file_obj:
     np.savetxt(file_obj, header, fmt="%-20s", delimiter=";")
 
 
@@ -423,10 +423,10 @@ while t < abs(t_a+0.5*dt):
     with open(tenpy_output_dir + "/sx.csv", 'a', 1) as file_obj:
         np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
 
-    nn_sy_sz_corr = \
-        4 * np.real(psi.expectation_value_term([("Sy", 0), ("Sz", 1)]))
-    line = np.array([[t, nn_sy_sz_corr]])
-    with open(tenpy_output_dir + "/sy|sz.csv", 'a', 1) as file_obj:
+    nn_sz_sz_corr = \
+        4 * np.real(psi.expectation_value_term([("Sz", 0), ("Sz", 1)]))
+    line = np.array([[t, nn_sz_sz_corr]])
+    with open(tenpy_output_dir + "/sz|sz.csv", 'a', 1) as file_obj:
         np.savetxt(file_obj, line, fmt="%-20s", delimiter=";")
 
     print("t = {}".format(t))
@@ -457,13 +457,13 @@ pathlib.Path(comparison_plot_output_dir).mkdir(parents=True, exist_ok=True)
 
 sx_y_label = (r"$\left\langle\hat{\sigma}_{x;r=0}"
             r"\left(t\right)\right\rangle$")
-sy_sz_y_label = (r"$\left\langle\hat{\sigma}_{y;r=0}\left(t\right)"
+sz_sz_y_label = (r"$\left\langle\hat{\sigma}_{z;r=0}\left(t\right)"
                  r"\hat{\sigma}_{z;r=1}\left(t\right)\right\rangle$")
 energy_y_label = (r"$\left\langle E\left(t\right)\right\rangle$")
 
 base_plot_filenames_vs_plot_specs_map = \
     {"/sx.pdf": ("/sx.csv", 1, sx_y_label),
-     "/sy|sz.pdf": ("/sy|sz.csv", 1, sy_sz_y_label),
+     "/sz|sz.pdf": ("/sz|sz.csv", 1, sz_sz_y_label),
      "/energy.pdf": ("/energy.csv", 1, energy_y_label)}
 
 for key, val in base_plot_filenames_vs_plot_specs_map.items():
