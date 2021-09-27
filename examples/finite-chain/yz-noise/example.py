@@ -289,7 +289,7 @@ temporal_compress_params = sbc.compress.Params(method="zip-up",
                                                max_num_var_sweeps=2,
                                                var_rel_tol=1e-8)
 spatial_compress_params = sbc.compress.Params(method="direct",
-                                              max_num_singular_values=16,
+                                              max_num_singular_values=32,
                                               max_trunc_err=1.e-14,
                                               svd_rel_tol=1.e-12)
 

@@ -11,27 +11,29 @@ created virtual environment using the conda package manager from anaconda. You
 will need to install anaconda3 in order for these instructions to work. First,
 update conda by issuing the following command in the terminal::
 
-    conda update conda
-
-then type and return ``y`` at the prompt to update any packages if necessary.
+    conda update conda --yes
 
 Next, assuming that you have downloaded/cloned the ``spin-boson-chain`` git
 repository, change into the root directory of said repository. To install the
 minimal requirements of ``spinbosonchain`` with MKL-optimized versions of
-``numpy`` and ``scipy``, issue the following commands (READ THE ENTIRE PARAGRAPH
-BEFORE DECIDING TO RUN THE COMMANDS BELOW)::
+``numpy`` and ``scipy``, and Python 3.6, issue the following commands (READ THE
+ENTIRE PARAGRAPH BEFORE DECIDING TO RUN THE COMMANDS BELOW)::
   
-    conda env create -f environment-mkl.yml
+    conda create -n sbc python=3.6 --yes
+    conda env update --name sbc --file environment-mkl.yml --prune
     conda activate sbc
 
 This will create a new virtual environment named ``sbc`` with the aforementioned
-minimal requirements installed, and activate the new virtual environment. It is
-recommended that you install the requirements using the above commands if
-performing operations on Intel CPUs. Otherwise, it may be better to install the
-minimal requirements with the default versions of ``numpy`` and ``scipy``, which
-can be done by issuing the following commands::
+minimal requirements installed, and activate the new virtual environment. Of
+course, the first line in the code block above can be modified to install a
+virtual environment with a different version of Python. It is recommended that
+you install the requirements using the above commands if performing operations
+on Intel CPUs. Otherwise, it may be better to install the minimal requirements
+with the default versions of ``numpy`` and ``scipy``, which can be done by
+issuing the following commands::
 
-    conda env create -f environment.yml
+    conda create -n sbc python=3.6 --yes
+    conda env update --name sbc --file environment.yml --prune
     conda activate sbc
 
 Once you have installed the required packages, you can install
@@ -152,11 +154,11 @@ comparison plots. If you have installed the ``spinbosonchain`` library in a
 conda virtual environment, then you can install ``quspin`` easily with OpenMP
 support by issuing the following command in the terminal::
 
-    conda install -c weinbe58 omp quspin=0.3.6
+    conda install -c weinbe58 omp quspin=0.3.6 --yes
 
 or without OpenMP support by running::
 
-    conda install -c weinbe58 quspin=0.3.6
+    conda install -c weinbe58 quspin=0.3.6 --yes
 
 If you installed ``spinbosonchain`` using pip only, then you will have to
 install ``quspin`` manually following the instructions found on the
@@ -169,7 +171,7 @@ that you are using, you can install ``tenpy`` by running::
 the following command in the root directory of the ``spinbosonchain``
 repository::
 
-    conda install --file requirements-plot.txt
+    conda install --file requirements-plot.txt --yes
 
 or alternatively, if ``spinbosonchain`` was installed using pip only, then
 ``matplotlib`` can be installed by running::
@@ -184,7 +186,7 @@ the sphinx and numpydoc packages. If you have installed ``spinbosonchain``
 within a conda virtual environment, then you can install the aforementioned
 packages by typing in the root directory of the repository::
 
-    conda install --file requirements-doc.txt
+    conda install --file requirements-doc.txt --yes
 
 Otherwise, if you installed ``spinbosonchain`` using pip only, then type in the
 root directory of the repository::
